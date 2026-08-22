@@ -98,3 +98,11 @@ footer { display: flex; justify-content: space-between; padding-top: .15rem; col
 
 @media (max-width: 880px) { .workspace { grid-template-columns: 1fr 1fr; }.mission-panel { grid-column: 1 / -1; }.seed-placeholder { min-height: 250px; }.twin-viewport { min-height: 310px; }.lower-console { grid-template-columns: 1fr; }.readiness-strip { min-height: 60px; }.readiness-item:first-child { border-left: 0; } }
 @media (max-width: 580px) { .console-shell { padding: .85rem; }.topbar, .intro-row, footer { align-items: flex-start; gap: .7rem; flex-direction: column; }.system-status { font-size: 8px; }.workspace { grid-template-columns: 1fr; }.mission-panel { grid-column: auto; }.seed-placeholder { min-height: 220px; }.twin-viewport { min-height: 300px; }.what-if { grid-template-columns: 1fr; }.what-if .panel-heading { border-right: 0; border-bottom: 1px solid var(--line); }.readiness-strip { grid-template-columns: 1fr; }.readiness-item { border-left: 0; border-top: 1px solid var(--line); } footer { font-size: 8px; } }
+.file-input { display: none; }
+.capture-button { position: absolute; z-index: 2; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; gap: .9rem; align-items: center; border: 1px solid rgba(211,255,83,.55); background: rgba(16,18,16,.75); color: var(--signal); padding: .72rem .8rem; font: 700 9px "Courier New", monospace; letter-spacing: .1em; cursor: pointer; transition: background .18s ease, color .18s ease; }
+.capture-button:hover { background: var(--signal); color: var(--ink); }
+.seed-placeholder.has-seed { background: #0c0e0c; }
+.seed-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.82) contrast(1.04); }
+.seed-preview-overlay { position: absolute; inset: auto .7rem .7rem; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: .45rem .55rem; background: rgba(11,13,11,.72); border: 1px solid rgba(211,255,83,.36); color: var(--signal); font: 9px "Courier New", monospace; letter-spacing: .08em; }
+.seed-preview-overlay button { border: 0; background: transparent; color: var(--paper); font: inherit; cursor: pointer; }
+.seed-preview-overlay button:hover { color: var(--signal); }

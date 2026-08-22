@@ -1,3 +1,7 @@
+"use client";
+
+import { type ChangeEvent, useRef, useState } from "react";
+
 const statusItems = [
   ["01", "CAPTURE", "Waiting for seed image"],
   ["02", "TWIN", "World model offline"],
@@ -5,6 +9,31 @@ const statusItems = [
 ];
 
 export default function Page() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [seedPreview, setSeedPreview] = useState<string | null>(null);
+  const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
+  const [seedSize, setSeedSize] = useState("—");
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSeedPreview(reader.result as string);
+      setSeedName(file.name.toUpperCase());
+      setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
+  function clearSeed() {
+    setSeedPreview(null);
+    setSeedName("NO SOURCE IMAGE");
+    setSeedSize("—");
+  }
+
   return (
     <main className="console-shell">
       <header className="topbar">
@@ -34,16 +63,30 @@ export default function Page() {
             <span className="panel-index">01</span>
             <span>SEED PHOTO</span>
           </div>
-          <div className="seed-placeholder">
-            <div className="grid-lines" aria-hidden="true" />
-            <div className="capture-orbit" aria-hidden="true" />
-            <div className="capture-crosshair" aria-hidden="true" />
-            <p>CAPTURE A REAL PLACE</p>
-            <span>Camera or image upload</span>
+          <div className={`seed-placeholder ${seedPreview ? "has-seed" : ""}`}>
+            {seedPreview ? (
+              <>
+                <img src={seedPreview} alt="Selected seed environment" className="seed-preview" />
+                <div className="seed-preview-overlay">
+                  <span>SEED LOCKED</span>
+                  <button type="button" onClick={clearSeed}>REMOVE</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid-lines" aria-hidden="true" />
+                <div className="capture-orbit" aria-hidden="true" />
+                <div className="capture-crosshair" aria-hidden="true" />
+                <p>CAPTURE A REAL PLACE</p>
+                <span>Start with a camera frame or image upload</span>
+              </>
+            )}
+            <input ref={inputRef} className="file-input" type="file" accept="image/*" onChange={handleFileChange} />
+            {!seedPreview && <button type="button" className="capture-button" onClick={() => inputRef.current?.click()}>SELECT IMAGE <span aria-hidden="true">↗</span></button>}
           </div>
           <div className="seed-meta">
-            <span>NO SOURCE IMAGE</span>
-            <span>—</span>
+            <span>{seedName}</span>
+            <span>{seedSize}</span>
           </div>
         </aside>
 
