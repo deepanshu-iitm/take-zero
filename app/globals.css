@@ -107,4 +107,7 @@ footer { display: flex; justify-content: space-between; padding-top: .15rem; col
 .seed-preview-overlay button { border: 0; background: transparent; color: var(--paper); font: inherit; cursor: pointer; }
 .seed-preview-overlay button:hover { color: var(--signal); }.system-status.ready .status-light { background: var(--signal); box-shadow: 0 0 0 3px rgba(211,255,83,.12), 0 0 16px rgba(211,255,83,.34); }
 .system-status.connecting .status-light, .system-status.waiting .status-light { background: #e7c95d; animation: signal-pulse 1.3s ease-in-out infinite; }
-@keyframes signal-pulse { 50% { opacity: .35; } }
+@keyframes signal-pulse { 50% { opacity: .35; } }.seed-actions { display: flex; align-items: center; gap: .7rem; }
+.seed-preview-overlay button[disabled] { color: #737a70; cursor: wait; }
+.seed-preview-overlay button:last-child { color: var(--signal); }
+.seed-preview-overlay button:last-child:disabled { color: #737a70; }

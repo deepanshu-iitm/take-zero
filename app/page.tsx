@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useRef, useState } from "react";
+import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
 
 const statusItems = [
@@ -10,9 +11,11 @@ const statusItems = [
 ];
 
 function TakeZeroConsole() {
-  const { status, connect, disconnect } = useWorldSession();
+  const { status, connect, disconnect, initializeWorld } = useWorldSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [seedPreview, setSeedPreview] = useState<string | null>(null);
+  const [seedFile, setSeedFile] = useState<File | null>(null);
+  const [worldPhase, setWorldPhase] = useState<"idle" | "initializing" | "streaming" | "error">("idle");
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
 
@@ -27,6 +30,8 @@ function TakeZeroConsole() {
     const reader = new FileReader();
     reader.onload = () => {
       setSeedPreview(reader.result as string);
+      setSeedFile(file);
+      setWorldPhase("idle");
       setSeedName(file.name.toUpperCase());
       setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
     };
@@ -36,10 +41,26 @@ function TakeZeroConsole() {
 
   function clearSeed() {
     setSeedPreview(null);
+    setSeedFile(null);
+    setWorldPhase("idle");
     setSeedName("NO SOURCE IMAGE");
     setSeedSize("—");
   }
 
+async function initializeTwin() {
+    if (!seedFile) return;
+
+    setWorldPhase("initializing");
+    try {
+      await initializeWorld(
+        seedFile,
+        "A first-person video of the uploaded real place at eye level. Preserve the layout, materials, objects, lighting, and depth visible in the reference image. Documentary realism. The viewer stands still. The room is steady and sharp.",
+      );
+      setWorldPhase("streaming");
+    } catch {
+      setWorldPhase("error");
+    }
+  }
   return (
     <main className="console-shell">
       <header className="topbar">
@@ -80,7 +101,7 @@ function TakeZeroConsole() {
                 <img src={seedPreview} alt="Selected seed environment" className="seed-preview" />
                 <div className="seed-preview-overlay">
                   <span>SEED LOCKED</span>
-                  <button type="button" onClick={clearSeed}>REMOVE</button>
+                  <div className="seed-actions"><button type="button" onClick={clearSeed} disabled={worldPhase === "initializing" || worldPhase === "streaming"}>REMOVE</button><button type="button" onClick={initializeTwin} disabled={status !== "ready" || worldPhase === "initializing" || worldPhase === "streaming"}>{worldPhase === "streaming" ? "TWIN LIVE" : worldPhase === "initializing" ? "INITIALIZING" : "INITIALIZE TWIN"}</button></div>
                 </div>
               </>
             ) : (
@@ -110,11 +131,18 @@ function TakeZeroConsole() {
           <div className="twin-viewport">
             <div className="viewport-noise" aria-hidden="true" />
             <div className="viewport-grid" aria-hidden="true" />
-            <div className="twin-empty-state">
-              <span className="empty-icon" aria-hidden="true">+</span>
-              <p>Your rehearsal begins with a place.</p>
-              <span>Capture a seed image to initialize the world.</span>
-            </div>
+            {worldPhase === "streaming" ? (
+              <LingbotWorld2MainVideoView
+                videoObjectFit="cover"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+              />
+            ) : (
+              <div className="twin-empty-state">
+                <span className="empty-icon" aria-hidden="true">{worldPhase === "initializing" ? "…" : worldPhase === "error" ? "!" : "+"}</span>
+                <p>{worldPhase === "initializing" ? "Conditioning the world." : worldPhase === "error" ? "Twin initialization failed." : "Your rehearsal begins with a place."}</p>
+                <span>{worldPhase === "initializing" ? "Uploading seed image and preparing the first frame." : worldPhase === "error" ? "Reconnect, then try the seed image again." : "Capture a seed image to initialize the world."}</span>
+              </div>
+            )}
             <div className="viewport-footer">
               <span>FRAME — / —</span>
               <span>16 FPS</span>

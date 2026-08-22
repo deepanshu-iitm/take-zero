@@ -3,18 +3,22 @@
 import {
   LingbotWorld2Provider,
   useLingbotWorld2,
+  useLingbotWorld2Message,
 } from "@reactor-models/lingbot-world-2";
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useMemo,
+  useRef,
 } from "react";
 
 type WorldSession = {
   status: string;
   connect: () => void;
   disconnect: () => void;
+  initializeWorld: (file: File, prompt: string) => Promise<void>;
 };
 
 const WorldSessionContext = createContext<WorldSession | null>(null);
@@ -32,8 +36,52 @@ async function getToken() {
 }
 
 function WorldSessionBridge({ children }: { children: ReactNode }) {
-  const { status, connect, disconnect } = useLingbotWorld2();
-  const value = useMemo(() => ({ status, connect, disconnect }), [status, connect, disconnect]);
+  const world = useLingbotWorld2();
+  const imageAccepted = useRef<(() => void) | null>(null);
+
+  useLingbotWorld2Message((message) => {
+    if (message.type === "image_accepted") {
+      imageAccepted.current?.();
+      imageAccepted.current = null;
+    }
+  });
+
+  const initializeWorld = useCallback(
+    async (file: File, prompt: string) => {
+      if (world.status !== "ready") {
+        throw new Error("Connect to Reactor before initializing the twin.");
+      }
+
+      const accepted = new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          imageAccepted.current = null;
+          reject(new Error("Reactor did not accept the seed image in time."));
+        }, 15_000);
+
+        imageAccepted.current = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+      });
+
+      const image = await world.uploadFile(file);
+      await world.setImage({ image });
+      await accepted;
+      await world.setPrompt({ prompt });
+      await world.start();
+    },
+    [world],
+  );
+
+  const value = useMemo(
+    () => ({
+      status: world.status,
+      connect: world.connect,
+      disconnect: world.disconnect,
+      initializeWorld,
+    }),
+    [world.status, world.connect, world.disconnect, initializeWorld],
+  );
 
   return <WorldSessionContext.Provider value={value}>{children}</WorldSessionContext.Provider>;
 }
