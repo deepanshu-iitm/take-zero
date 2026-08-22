@@ -4,6 +4,12 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
 
+type PlaceBrief = {
+  title: string;
+  landmarks: string[];
+  worldPrompt: string;
+};
+
 const statusItems = [
   ["01", "CAPTURE", "Waiting for seed image"],
   ["02", "TWIN", "World model offline"],
@@ -19,6 +25,7 @@ function TakeZeroConsole() {
   const [walkMode, setWalkMode] = useState(false);
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
+  const [placeLabel, setPlaceLabel] = useState("UNANALYZED SEED");
   const [mission, setMission] = useState("Find the nearest door");
   const [rehearsalState, setRehearsalState] = useState<"idle" | "queued">("idle");
   const [missionLog, setMissionLog] = useState(["Waiting for a seeded world.", "Agent handoff is not active yet."]);
@@ -38,6 +45,7 @@ function TakeZeroConsole() {
       setWorldPhase("idle");
       setSeedName(file.name.toUpperCase());
       setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
+      setPlaceLabel("UNANALYZED SEED");
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -49,23 +57,34 @@ function TakeZeroConsole() {
     setWorldPhase("idle");
     setSeedName("NO SOURCE IMAGE");
     setSeedSize("—");
+    setPlaceLabel("UNANALYZED SEED");
   }
 
-async function initializeTwin() {
-    if (!seedFile) return;
+  async function initializeTwin() {
+    if (!seedFile || !seedPreview) return;
 
     setWorldPhase("initializing");
     try {
-      await initializeWorld(
-        seedFile,
-        "A first-person video of the uploaded real place at eye level. Preserve the layout, materials, objects, lighting, and depth visible in the reference image. Documentary realism. The viewer stands still. The room is steady and sharp.",
-      );
+      const response = await fetch("/api/describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: seedPreview }),
+      });
+
+      const brief = (await response.json().catch(() => null)) as PlaceBrief | null;
+      if (!response.ok || !brief?.worldPrompt) {
+        throw new Error("Photo analysis failed");
+      }
+
+      setPlaceLabel(brief.title);
+      await initializeWorld(seedFile, brief.worldPrompt);
       setWorldPhase("streaming");
     } catch {
       setWorldPhase("error");
     }
   }
-function toggleRehearsal() {
+
+  function toggleRehearsal() {
     if (rehearsalState === "queued") {
       setRehearsalState("idle");
       setMissionLog(["Rehearsal stopped.", "The world remains ready for manual Walk mode."]);
@@ -75,6 +94,7 @@ function toggleRehearsal() {
     setRehearsalState("queued");
     setMissionLog([`Mission queued: ${mission}`, "Ready for the agent-control step."]);
   }
+
   useEffect(() => {
     if (worldPhase !== "streaming" || !walkMode) return;
 
@@ -194,7 +214,7 @@ function toggleRehearsal() {
             <div className="viewport-footer">
               <span>FRAME — / —</span>
               <span>16 FPS</span>
-              <span>{walkMode ? "W/S + ARROWS" : "CONTEXT / READY"}</span>
+              <span>{walkMode ? "W/S + ARROWS" : placeLabel}</span>
             </div>
           </div>
         </section>
