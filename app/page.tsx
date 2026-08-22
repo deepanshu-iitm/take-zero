@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useRef, useState } from "react";
+import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
 
 const statusItems = [
   ["01", "CAPTURE", "Waiting for seed image"],
@@ -8,11 +9,16 @@ const statusItems = [
   ["03", "REHEARSE", "Awaiting mission"],
 ];
 
-export default function Page() {
+function TakeZeroConsole() {
+  const { status, connect, disconnect } = useWorldSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [seedPreview, setSeedPreview] = useState<string | null>(null);
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
+
+  const connectionLabel =
+    status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
+  const isConnecting = status === "connecting" || status === "waiting";
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -44,12 +50,17 @@ export default function Page() {
             <h1>Rehearse reality.</h1>
           </div>
         </div>
-        <div className="system-status">
+        <button
+          className={`system-status ${status}`}
+          type="button"
+          onClick={status === "disconnected" ? connect : disconnect}
+          aria-label={status === "disconnected" ? "Connect to Reactor" : "Disconnect from Reactor"}
+        >
           <span className="status-light" aria-hidden="true" />
-          <span>System standby</span>
+          <span>{connectionLabel}</span>
           <span className="status-divider" aria-hidden="true" />
-          <span>LingBot World 2</span>
-        </div>
+          <span>{status === "disconnected" ? "Connect" : isConnecting ? "Cancel" : "Disconnect"}</span>
+        </button>
       </header>
 
       <section className="intro-row" aria-label="Product framing">
@@ -94,7 +105,7 @@ export default function Page() {
           <div className="panel-heading">
             <span className="panel-index">02</span>
             <span>LIVE TWIN</span>
-            <span className="panel-trailing">OFFLINE</span>
+            <span className="panel-trailing">{status === "ready" ? "READY" : isConnecting ? "CONNECTING" : "OFFLINE"}</span>
           </div>
           <div className="twin-viewport">
             <div className="viewport-noise" aria-hidden="true" />
@@ -157,5 +168,13 @@ export default function Page() {
         <span>REACTOR × ANTHROPIC</span>
       </footer>
     </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <WorldSessionProvider>
+      <TakeZeroConsole />
+    </WorldSessionProvider>
   );
 }

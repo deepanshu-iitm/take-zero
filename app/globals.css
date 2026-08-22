@@ -49,7 +49,7 @@ button, input { font: inherit; }
 .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; border: 1px solid var(--signal); color: var(--signal); font: 700 11px "Courier New", monospace; }
 .eyebrow { margin: 0 0 .25rem; color: var(--signal); font: 600 10px "Courier New", monospace; letter-spacing: .14em; }
 h1 { margin: 0; font-size: 1.12rem; line-height: 1; font-weight: 500; letter-spacing: -.04em; }
-.system-status { display: flex; gap: .6rem; align-items: center; color: var(--muted); font: 10px "Courier New", monospace; text-transform: uppercase; }
+.system-status { border: 0; background: transparent; display: flex; cursor: pointer; padding: .35rem 0; gap: .6rem; align-items: center; color: var(--muted); font: 10px "Courier New", monospace; text-transform: uppercase; }
 .status-light { width: 7px; height: 7px; border-radius: 50%; background: #778078; box-shadow: 0 0 0 3px rgba(119, 128, 120, .12); }
 .status-divider { width: 1px; height: 13px; background: var(--line); margin: 0 .25rem; }
 
@@ -105,4 +105,6 @@ footer { display: flex; justify-content: space-between; padding-top: .15rem; col
 .seed-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.82) contrast(1.04); }
 .seed-preview-overlay { position: absolute; inset: auto .7rem .7rem; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: .45rem .55rem; background: rgba(11,13,11,.72); border: 1px solid rgba(211,255,83,.36); color: var(--signal); font: 9px "Courier New", monospace; letter-spacing: .08em; }
 .seed-preview-overlay button { border: 0; background: transparent; color: var(--paper); font: inherit; cursor: pointer; }
-.seed-preview-overlay button:hover { color: var(--signal); }
+.seed-preview-overlay button:hover { color: var(--signal); }.system-status.ready .status-light { background: var(--signal); box-shadow: 0 0 0 3px rgba(211,255,83,.12), 0 0 16px rgba(211,255,83,.34); }
+.system-status.connecting .status-light, .system-status.waiting .status-light { background: #e7c95d; animation: signal-pulse 1.3s ease-in-out infinite; }
+@keyframes signal-pulse { 50% { opacity: .35; } }
