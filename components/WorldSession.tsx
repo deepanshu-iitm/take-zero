@@ -14,23 +14,28 @@ import {
   useRef,
 } from "react";
 
+type WalkAction = {
+  longitudinal: "idle" | "forward" | "back";
+  horizontal: "idle" | "left" | "right";
+  vertical: "idle" | "up" | "down";
+};
+
 type WorldSession = {
   status: string;
   connect: () => void;
   disconnect: () => void;
   initializeWorld: (file: File, prompt: string) => Promise<void>;
+  setWalkAction: (action: WalkAction) => Promise<void>;
 };
 
 const WorldSessionContext = createContext<WorldSession | null>(null);
 
 async function getToken() {
   const response = await fetch("/api/reactor/token", { method: "POST" });
-
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? "Unable to create a Reactor session token.");
   }
-
   const { jwt } = (await response.json()) as { jwt: string };
   return jwt;
 }
@@ -46,6 +51,18 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
     }
   });
 
+  const setWalkAction = useCallback(
+    async ({ longitudinal, horizontal, vertical }: WalkAction) => {
+      await Promise.all([
+        world.setMoveLongitudinal({ move_longitudinal: longitudinal }),
+        world.setMoveLateral({ move_lateral: "idle" }),
+        world.setLookHorizontal({ look_horizontal: horizontal }),
+        world.setLookVertical({ look_vertical: vertical }),
+      ]);
+    },
+    [world],
+  );
+
   const initializeWorld = useCallback(
     async (file: File, prompt: string) => {
       if (world.status !== "ready") {
@@ -57,7 +74,6 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
           imageAccepted.current = null;
           reject(new Error("Reactor did not accept the seed image in time."));
         }, 15_000);
-
         imageAccepted.current = () => {
           window.clearTimeout(timeout);
           resolve();
@@ -79,8 +95,9 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
       connect: world.connect,
       disconnect: world.disconnect,
       initializeWorld,
+      setWalkAction,
     }),
-    [world.status, world.connect, world.disconnect, initializeWorld],
+    [world.status, world.connect, world.disconnect, initializeWorld, setWalkAction],
   );
 
   return <WorldSessionContext.Provider value={value}>{children}</WorldSessionContext.Provider>;
@@ -96,10 +113,6 @@ export function WorldSessionProvider({ children }: { children: ReactNode }) {
 
 export function useWorldSession() {
   const session = useContext(WorldSessionContext);
-
-  if (!session) {
-    throw new Error("useWorldSession must be used inside WorldSessionProvider.");
-  }
-
+  if (!session) throw new Error("useWorldSession must be used inside WorldSessionProvider.");
   return session;
 }

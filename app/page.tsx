@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
 
@@ -11,11 +11,12 @@ const statusItems = [
 ];
 
 function TakeZeroConsole() {
-  const { status, connect, disconnect, initializeWorld } = useWorldSession();
+  const { status, connect, disconnect, initializeWorld, setWalkAction } = useWorldSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [seedPreview, setSeedPreview] = useState<string | null>(null);
   const [seedFile, setSeedFile] = useState<File | null>(null);
   const [worldPhase, setWorldPhase] = useState<"idle" | "initializing" | "streaming" | "error">("idle");
+  const [walkMode, setWalkMode] = useState(false);
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
 
@@ -61,6 +62,39 @@ async function initializeTwin() {
       setWorldPhase("error");
     }
   }
+  useEffect(() => {
+    if (worldPhase !== "streaming" || !walkMode) return;
+
+    const pressed = new Set<string>();
+    const supported = new Set(["KeyW", "KeyS", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    const sendAction = () => {
+      void setWalkAction({
+        longitudinal: pressed.has("KeyW") ? "forward" : pressed.has("KeyS") ? "back" : "idle",
+        horizontal: pressed.has("ArrowLeft") ? "left" : pressed.has("ArrowRight") ? "right" : "idle",
+        vertical: pressed.has("ArrowUp") ? "up" : pressed.has("ArrowDown") ? "down" : "idle",
+      });
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!supported.has(event.code)) return;
+      event.preventDefault();
+      pressed.add(event.code);
+      sendAction();
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!supported.has(event.code)) return;
+      event.preventDefault();
+      pressed.delete(event.code);
+      sendAction();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      void setWalkAction({ longitudinal: "idle", horizontal: "idle", vertical: "idle" });
+    };
+  }, [worldPhase, walkMode, setWalkAction]);
   return (
     <main className="console-shell">
       <header className="topbar">
@@ -143,10 +177,11 @@ async function initializeTwin() {
                 <span>{worldPhase === "initializing" ? "Uploading seed image and preparing the first frame." : worldPhase === "error" ? "Reconnect, then try the seed image again." : "Capture a seed image to initialize the world."}</span>
               </div>
             )}
+            {worldPhase === "streaming" && <button type="button" className={`walk-toggle ${walkMode ? "active" : ""}`} onClick={() => setWalkMode((enabled) => !enabled)}>{walkMode ? "WALK MODE / ON" : "WALK MODE / OFF"}</button>}
             <div className="viewport-footer">
               <span>FRAME — / —</span>
               <span>16 FPS</span>
-              <span>CONTEXT / READY</span>
+              <span>{walkMode ? "W/S + ARROWS" : "CONTEXT / READY"}</span>
             </div>
           </div>
         </section>

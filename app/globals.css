@@ -110,4 +110,5 @@ footer { display: flex; justify-content: space-between; padding-top: .15rem; col
 @keyframes signal-pulse { 50% { opacity: .35; } }.seed-actions { display: flex; align-items: center; gap: .7rem; }
 .seed-preview-overlay button[disabled] { color: #737a70; cursor: wait; }
 .seed-preview-overlay button:last-child { color: var(--signal); }
-.seed-preview-overlay button:last-child:disabled { color: #737a70; }
+.seed-preview-overlay button:last-child:disabled { color: #737a70; }.walk-toggle { position: absolute; z-index: 3; top: .75rem; right: .75rem; border: 1px solid rgba(233,232,226,.22); background: rgba(11,13,11,.72); color: var(--paper); padding: .52rem .62rem; font: 700 9px "Courier New", monospace; letter-spacing: .08em; cursor: pointer; }
+.walk-toggle.active { border-color: var(--signal); color: var(--signal); box-shadow: 0 0 14px rgba(211,255,83,.12); }
