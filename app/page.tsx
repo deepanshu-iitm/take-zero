@@ -19,6 +19,9 @@ function TakeZeroConsole() {
   const [walkMode, setWalkMode] = useState(false);
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
+  const [mission, setMission] = useState("Find the nearest door");
+  const [rehearsalState, setRehearsalState] = useState<"idle" | "queued">("idle");
+  const [missionLog, setMissionLog] = useState(["Waiting for a seeded world.", "Agent handoff is not active yet."]);
 
   const connectionLabel =
     status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
@@ -61,6 +64,16 @@ async function initializeTwin() {
     } catch {
       setWorldPhase("error");
     }
+  }
+function toggleRehearsal() {
+    if (rehearsalState === "queued") {
+      setRehearsalState("idle");
+      setMissionLog(["Rehearsal stopped.", "The world remains ready for manual Walk mode."]);
+      return;
+    }
+
+    setRehearsalState("queued");
+    setMissionLog([`Mission queued: ${mission}`, "Ready for the agent-control step."]);
   }
   useEffect(() => {
     if (worldPhase !== "streaming" || !walkMode) return;
@@ -192,15 +205,26 @@ async function initializeTwin() {
             <span>MISSION</span>
           </div>
           <label className="mission-label" htmlFor="mission">REHEARSAL OBJECTIVE</label>
-          <div className="mission-input" id="mission">Find the nearest door</div>
-          <button className="rehearse-button" type="button" disabled>
-            <span>REHEARSE</span>
-            <span aria-hidden="true">↗</span>
+          <input
+            className="mission-input"
+            id="mission"
+            value={mission}
+            onChange={(event) => setMission(event.target.value)}
+            placeholder="e.g. Find the nearest door"
+            disabled={worldPhase !== "streaming"}
+          />
+          <button
+            className={`rehearse-button ${rehearsalState}`}
+            type="button"
+            onClick={toggleRehearsal}
+            disabled={worldPhase !== "streaming" || !mission.trim()}
+          >
+            <span>{rehearsalState === "queued" ? "STOP" : "REHEARSE"}</span>
+            <span aria-hidden="true">{rehearsalState === "queued" ? "×" : "↗"}</span>
           </button>
-          <div className="mission-log" aria-label="Agent log preview">
-            <div className="log-heading"><span>AGENT LOG</span><span>STANDBY</span></div>
-            <p><span>—:—</span> Waiting for a seeded world.</p>
-            <p><span>—:—</span> Agent will observe, navigate, replan.</p>
+          <div className="mission-log" aria-label="Rehearsal log">
+            <div className="log-heading"><span>REHEARSAL LOG</span><span>{rehearsalState === "queued" ? "QUEUED" : "STANDBY"}</span></div>
+            {missionLog.map((line, index) => <p key={`${line}-${index}`}><span>0{index + 1}</span> {line}</p>)}
           </div>
         </aside>
       </section>
