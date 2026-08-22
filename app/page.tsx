@@ -269,11 +269,6 @@ function TakeZeroConsole() {
           ))}
         </div>
       </section>
-
-      <footer>
-        <span>TAKE ZERO — THE REHEARSAL BEFORE THE REAL TAKE</span>
-        <span>REACTOR × ANTHROPIC</span>
-      </footer>
     </main>
   );
 }
