@@ -482,7 +482,7 @@ function TakeZeroConsole() {
             value={mission}
             onChange={(event) => setMission(event.target.value)}
             placeholder="e.g. Reach the nearest accessible doorway"
-            disabled={worldPhase !== "streaming"}
+            disabled={worldPhase !== "streaming" || agentState === "running"}
           />
           <div className="scenario-controls" aria-label="Scenario controls">
             <button type="button" className={activeEvent === "clear" ? "active" : ""} onClick={() => void selectScenario("clear")} disabled={worldPhase !== "streaming"}>CLEAR</button>
