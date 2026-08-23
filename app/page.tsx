@@ -232,7 +232,7 @@ function TakeZeroConsole() {
       if (!response.ok || !action?.say) throw new Error("Agent decision failed");
       if (!agentRunningRef.current) return;
 
-      const effectiveAction =
+      const pacedAction =
         action.status === "progress" &&
         action.movement === "forward" &&
         agentForwardTickRef.current >= MAX_CONSECUTIVE_FORWARD_TICKS
@@ -243,6 +243,10 @@ function TakeZeroConsole() {
               say: "Scout pauses to reassess the route.",
             }
           : action;
+      const effectiveAction =
+        pacedAction.movement !== "idle" && pacedAction.look_horizontal !== "idle"
+          ? { ...pacedAction, movement: "idle" as const }
+          : pacedAction;
 
       agentForwardTickRef.current =
         effectiveAction.movement === "forward" ? agentForwardTickRef.current + 1 : 0;
