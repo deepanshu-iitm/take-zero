@@ -41,11 +41,20 @@ function getOutputText(response: ModelResponse) {
     .find((content) => content.type === "output_text")?.text;
 }
 
+function extractJson(output: string) {
+  const trimmed = output.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]) return fenced[1];
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
+}
 function parseAction(output: string | undefined): AgentAction {
   if (!output) return idleAction;
 
   try {
-    const parsed = JSON.parse(output) as Partial<AgentAction>;
+    const parsed = JSON.parse(extractJson(output)) as Partial<AgentAction>;
     if (
       !movements.has(parsed.movement as AgentAction["movement"]) ||
       !horizontalLooks.has(parsed.look_horizontal as AgentAction["look_horizontal"]) ||
@@ -114,6 +123,26 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: process.env.WORLD_ACT_MODEL ?? process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
         store: false,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "scout_action",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                movement: { type: "string", enum: ["idle", "forward", "back"] },
+                look_horizontal: { type: "string", enum: ["idle", "left", "right"] },
+                look_vertical: { type: "string", enum: ["idle", "up", "down"] },
+                say: { type: "string" },
+                status: { type: "string", enum: ["progress", "done", "stuck"] },
+                confidence: { type: "number" },
+              },
+              required: ["movement", "look_horizontal", "look_vertical", "say", "status", "confidence"],
+            },
+          },
+        },
         instructions:
           "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Prefer forward plus turning; never strafe. Hold decisions rather than flickering. If the mission is visibly complete, return status done with movement idle. If no route can be confirmed after several tries, return status stuck with movement idle. Your say field is one short present-tense sentence describing what you see and do. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.",
         input: [
