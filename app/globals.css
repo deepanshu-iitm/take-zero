@@ -113,3 +113,41 @@ button, input { font: inherit; }
 .plan-watchout span { margin-bottom: .22rem; color: #d8c875; }
 
 .connection-error { margin: .45rem 0 -.1rem; color: #ffad9d; font: 700 9px "Courier New", monospace; letter-spacing: .1em; }
+
+@media (max-width: 1080px) {
+  .workspace { grid-template-columns: minmax(180px, .8fr) minmax(360px, 1.55fr); }
+  .mission-panel { grid-column: 1 / -1; }
+  .mission-panel .rehearsal-plan { max-width: 760px; }
+}
+
+@media (max-width: 720px) {
+  .console-shell { min-height: 100svh; padding: .7rem .85rem 1rem; gap: .7rem; }
+  .workspace { min-height: 0; grid-template-columns: 1fr; }
+  .mission-panel { grid-column: auto; }
+  .seed-placeholder { min-height: 260px; }
+  .twin-viewport { min-height: min(62svh, 460px); }
+  .seed-preview-overlay { align-items: flex-end; gap: .65rem; }
+  .seed-actions { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
+  .seed-meta { gap: .75rem; }
+  .seed-meta span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mission-panel { padding-bottom: 1.2rem; }
+}
+
+@media (max-width: 460px) {
+  .topbar { min-height: 40px; padding: .15rem 0 .55rem; align-items: center; flex-direction: row; gap: .6rem; }
+  .brand-lockup { gap: .6rem; }
+  .brand-mark { width: 27px; height: 27px; font-size: 9px; }
+  .wordmark { font-size: 15px; letter-spacing: .12em; }
+  .system-status { gap: .42rem; font-size: 8px; }
+  .status-divider { margin: 0 .05rem; }
+  .panel-heading { height: 39px; padding: 0 .75rem; }
+  .seed-placeholder { min-height: 235px; }
+  .twin-viewport { min-height: 52svh; }
+  .capture-button { bottom: 1.25rem; }
+  .seed-preview-overlay { inset: auto .55rem .55rem; padding: .45rem; }
+  .seed-preview-overlay > span { display: none; }
+  .seed-actions { width: 100%; justify-content: space-between; }
+  .mission-input, .rehearsal-error, .rehearsal-plan { margin-left: .75rem; margin-right: .75rem; }
+  .mission-input { width: calc(100% - 1.5rem); }
+  .rehearse-button { width: calc(100% - 1.5rem); margin-left: .75rem; margin-right: .75rem; }
+}
