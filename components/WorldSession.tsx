@@ -25,6 +25,7 @@ type WorldSession = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   initializeWorld: (file: File, prompt: string) => Promise<void>;
+  setWorldPrompt: (prompt: string) => Promise<void>;
   setWalkAction: (action: WalkAction) => Promise<void>;
 };
 
@@ -52,6 +53,16 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
   const disconnect = useCallback(async () => {
     await world.disconnect();
   }, [world]);
+
+  const setWorldPrompt = useCallback(
+    async (prompt: string) => {
+      if (world.status !== "ready") {
+        throw new Error("Connect to Reactor before updating the twin prompt.");
+      }
+      await world.setPrompt({ prompt });
+    },
+    [world],
+  );
 
   useLingbotWorld2Message((message) => {
     if (message.type === "image_accepted") {
@@ -104,9 +115,10 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       initializeWorld,
+      setWorldPrompt,
       setWalkAction,
     }),
-    [world.status, connect, disconnect, initializeWorld, setWalkAction],
+    [world.status, connect, disconnect, initializeWorld, setWorldPrompt, setWalkAction],
   );
 
   return <WorldSessionContext.Provider value={value}>{children}</WorldSessionContext.Provider>;
