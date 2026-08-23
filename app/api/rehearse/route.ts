@@ -37,9 +37,9 @@ function parsePlan(output: string | undefined): RehearsalPlan | null {
     }
 
     return {
-      objective: parsed.objective.trim().slice(0, 140),
-      steps: steps.map((step) => step.trim().slice(0, 180)),
-      watchout: parsed.watchout.trim().slice(0, 180),
+      objective: parsed.objective.trim(),
+      steps: steps.map((step) => step.trim()),
+      watchout: parsed.watchout.trim(),
     };
   } catch {
     return null;
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
         model: process.env.WORLD_REHEARSAL_MODEL ?? process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
         store: false,
         instructions:
-          "You are Take Zero's simulation planner. Produce a conservative simulated navigation plan from the supplied image-derived context. Return strict JSON only with objective, steps, and watchout. objective: restate the mission in one neutral sentence. steps: exactly three concise imperative steps, each grounded only in the supplied landmarks and scene description. watchout: one short uncertainty, occlusion, or verification note. Do not claim that any action was performed, invent geometry, people, hazards, distances, or objects, or provide real-world safety guarantees.",
+          "You are Take Zero's simulation planner. Produce a conservative simulated navigation plan from the supplied image-derived context. Return strict JSON only with objective, steps, and watchout. objective: restate the mission in one neutral sentence of at most 24 words. steps: exactly three complete imperative sentences, each no more than 22 words and grounded only in the supplied landmarks and scene description. watchout: one complete verification note of at most 24 words. Do not claim that any action was performed, invent geometry, people, hazards, distances, or objects, or provide real-world safety guarantees.",
         input: `LOCATION: ${body.title.slice(0, 48)}\nLANDMARKS: ${landmarks.join(", ") || "None confirmed"}\nSCENE: ${body.worldPrompt.slice(0, 1_500)}\nMISSION: ${mission.slice(0, 300)}`,
       }),
     });
