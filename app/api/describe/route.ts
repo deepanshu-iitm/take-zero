@@ -40,6 +40,16 @@ function isValidBasePrompt(prompt: string) {
   );
 }
 
+function normalizeBasePrompt(prompt: string) {
+  const compact = prompt.trim().replace(/\s+/g, " ");
+  const normalized = compact.replace(/^a\s+first[-\s]?person\s+video\s+of\b/i, "A first-person video of");
+  const withOpener = /^A first-person video of\b/i.test(normalized)
+    ? normalized
+    : `A first-person video of ${normalized}`;
+
+  return isValidBasePrompt(withOpener) ? withOpener : null;
+}
+
 function parseBrief(output: string | undefined): PlaceBrief {
   if (!output) return fallbackBrief;
 
@@ -49,11 +59,12 @@ function parseBrief(output: string | undefined): PlaceBrief {
       ? parsed.landmarks.filter((landmark): landmark is string => typeof landmark === "string").slice(0, 5)
       : [];
 
-    if (
-      typeof parsed.worldPrompt !== "string" ||
-      parsed.worldPrompt.trim().length < 24 ||
-      !isValidBasePrompt(parsed.worldPrompt)
-    ) {
+    const worldPrompt =
+      typeof parsed.worldPrompt === "string" && parsed.worldPrompt.trim().length >= 24
+        ? normalizeBasePrompt(parsed.worldPrompt)
+        : null;
+
+    if (!worldPrompt) {
       return { ...fallbackBrief, landmarks };
     }
 
@@ -63,7 +74,7 @@ function parseBrief(output: string | undefined): PlaceBrief {
           ? parsed.title.trim().slice(0, 48).toUpperCase()
           : fallbackBrief.title,
       landmarks,
-      worldPrompt: parsed.worldPrompt.trim(),
+      worldPrompt,
     };
   } catch {
     return fallbackBrief;
