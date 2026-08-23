@@ -166,3 +166,8 @@ button, input { font: inherit; }
 .scenario-controls button.active { border-color: rgba(211,255,83,.72); color: var(--signal); background: rgba(211,255,83,.08); }
 .scenario-controls button:disabled { cursor: not-allowed; opacity: .45; }
 .agent-hud span:nth-child(4) { color: #c4b577; }
+.landmark-list { padding: .75rem .9rem .9rem; border-top: 1px solid var(--line); color: var(--muted); font: 8px "Courier New", monospace; letter-spacing: .1em; }
+.landmark-list > div { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem; }
+.landmark-list button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgba(233,232,226,.2); background: transparent; color: var(--paper); padding: .4rem .46rem; font: 8px "Courier New", monospace; letter-spacing: .04em; cursor: pointer; }
+.landmark-list button:hover { border-color: rgba(211,255,83,.65); color: var(--signal); }
+.landmark-list button:disabled { cursor: not-allowed; opacity: .45; }

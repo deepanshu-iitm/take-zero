@@ -375,6 +375,24 @@ function TakeZeroConsole() {
             <span>{seedName}</span>
             <span>{seedSize}</span>
           </div>
+
+          {placeBrief?.landmarks.length ? (
+            <div className="landmark-list">
+              <span>VISIBLE ANCHORS</span>
+              <div>
+                {placeBrief.landmarks.map((landmark) => (
+                  <button
+                    key={landmark}
+                    type="button"
+                    onClick={() => setMission(`Find: ${landmark}`)}
+                    disabled={agentState === "running"}
+                  >
+                    {landmark}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </aside>
 
         <section className="twin-panel panel">
