@@ -25,6 +25,7 @@ type AgentState = "idle" | "running" | "done" | "stuck" | "error";
 type FrameSource = "waiting" | "live" | "seed";
 
 const MAX_AGENT_TICKS = 8;
+const MAX_CONSECUTIVE_FORWARD_TICKS = 2;
 
 const idleAction: AgentAction = {
   movement: "idle",
@@ -56,6 +57,7 @@ function TakeZeroConsole() {
   const agentTimerRef = useRef<number | null>(null);
   const agentActionRef = useRef<AgentAction>(idleAction);
   const agentTickRef = useRef(0);
+  const agentForwardTickRef = useRef(0);
   const agentMovementRef = useRef<"still" | "moving">("still");
   const activeEventRef = useRef<ScenarioEvent>("clear");
   const agentLogRef = useRef<string[]>([]);
@@ -231,11 +233,26 @@ function TakeZeroConsole() {
       if (!response.ok || !action?.say) throw new Error("Agent decision failed");
       if (!agentRunningRef.current) return;
 
-      const nextMovementLayer = action.movement === "idle" ? "still" : "moving";
+      const effectiveAction =
+        action.status === "progress" &&
+        action.movement === "forward" &&
+        agentForwardTickRef.current >= MAX_CONSECUTIVE_FORWARD_TICKS
+          ? {
+              ...action,
+              movement: "idle" as const,
+              look_horizontal: "idle" as const,
+              say: "Scout pauses to reassess the route.",
+            }
+          : action;
+
+      agentForwardTickRef.current =
+        effectiveAction.movement === "forward" ? agentForwardTickRef.current + 1 : 0;
+
+      const nextMovementLayer = effectiveAction.movement === "idle" ? "still" : "moving";
       await setWalkAction({
-        longitudinal: action.movement,
-        horizontal: action.look_horizontal,
-        vertical: action.look_vertical,
+        longitudinal: effectiveAction.movement,
+        horizontal: effectiveAction.look_horizontal,
+        vertical: effectiveAction.look_vertical,
       });
       if (nextMovementLayer !== agentMovementRef.current) {
         await setWorldPrompt(
@@ -244,9 +261,9 @@ function TakeZeroConsole() {
         agentMovementRef.current = nextMovementLayer;
       }
 
-      agentActionRef.current = action;
-      setCurrentAction(action);
-      appendAgentLog(action.say);
+      agentActionRef.current = effectiveAction;
+      setCurrentAction(effectiveAction);
+      appendAgentLog(effectiveAction.say);
       agentTickRef.current += 1;
 
       if (action.status === "done") {
@@ -285,6 +302,7 @@ function TakeZeroConsole() {
     agentRunningRef.current = true;
     agentActionRef.current = idleAction;
     agentTickRef.current = 0;
+    agentForwardTickRef.current = 0;
     setCurrentAction(idleAction);
     setFrameSource("waiting");
     agentMovementRef.current = "still";
