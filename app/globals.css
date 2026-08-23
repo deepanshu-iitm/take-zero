@@ -161,3 +161,8 @@ button, input { font: inherit; }
 .rehearse-button.running { color: #ffb0a2; background: rgba(178,67,49,.18); border: 1px solid rgba(255,153,134,.38); cursor: pointer; }
 .agent-log { display: grid; gap: .55rem; max-height: 13rem; margin: 0 .9rem; padding: .85rem .9rem .85rem 2.05rem; overflow-y: auto; border-top: 1px solid var(--line); color: var(--muted); font: 9px/1.55 "Courier New", monospace; letter-spacing: .035em; }
 .agent-log li::marker { color: var(--signal); }
+.scenario-controls { display: flex; gap: .45rem; margin: .75rem .9rem 0; }
+.scenario-controls button { flex: 1; min-height: 30px; border: 1px solid var(--line); color: var(--muted); background: transparent; font: 700 8px "Courier New", monospace; letter-spacing: .1em; cursor: pointer; }
+.scenario-controls button.active { border-color: rgba(211,255,83,.72); color: var(--signal); background: rgba(211,255,83,.08); }
+.scenario-controls button:disabled { cursor: not-allowed; opacity: .45; }
+.agent-hud span:nth-child(4) { color: #c4b577; }

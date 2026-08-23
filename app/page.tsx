@@ -4,7 +4,7 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
 import { captureVideoFrame } from "@/lib/frame";
-import { assemblePrompt } from "@/lib/prompt";
+import { assemblePrompt, type ScenarioEvent } from "@/lib/prompt";
 
 type PlaceBrief = {
   title: string;
@@ -45,12 +45,14 @@ function TakeZeroConsole() {
   const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
   const [mission, setMission] = useState("Find the nearest door");
   const [agentState, setAgentState] = useState<AgentState>("idle");
+  const [activeEvent, setActiveEvent] = useState<ScenarioEvent>("clear");
   const [currentAction, setCurrentAction] = useState<AgentAction>(idleAction);
   const [agentLog, setAgentLog] = useState<string[]>([]);
   const agentRunningRef = useRef(false);
   const agentTimerRef = useRef<number | null>(null);
   const agentActionRef = useRef<AgentAction>(idleAction);
   const agentMovementRef = useRef<"still" | "moving">("still");
+  const activeEventRef = useRef<ScenarioEvent>("clear");
   const agentLogRef = useRef<string[]>([]);
   const twinViewportRef = useRef<HTMLDivElement>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -96,6 +98,8 @@ function TakeZeroConsole() {
       setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
       setPlaceLabel("UNANALYZED SEED");
       setPlaceBrief(null);
+      setActiveEvent("clear");
+      activeEventRef.current = "clear";
       setAgentState("idle");
       setAgentLog([]);
       agentLogRef.current = [];
@@ -112,6 +116,8 @@ function TakeZeroConsole() {
     setSeedSize("—");
     setPlaceLabel("UNANALYZED SEED");
     setPlaceBrief(null);
+    setActiveEvent("clear");
+    activeEventRef.current = "clear";
     setAgentState("idle");
     setAgentLog([]);
     agentLogRef.current = [];
@@ -162,7 +168,7 @@ function TakeZeroConsole() {
       await setWalkAction({ longitudinal: "idle", horizontal: "idle", vertical: "idle" });
       if (placeBrief && agentMovementRef.current === "moving") {
         await setWorldPrompt(
-          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: "clear" }),
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: activeEventRef.current }),
         );
       }
     } catch {
@@ -174,6 +180,22 @@ function TakeZeroConsole() {
     if (message) appendAgentLog(message);
   }
 
+  async function selectScenario(event: ScenarioEvent) {
+    if (worldPhase !== "streaming" || !placeBrief || event === activeEventRef.current) return;
+
+    activeEventRef.current = event;
+    setActiveEvent(event);
+    const movement = agentRunningRef.current ? agentMovementRef.current : "still";
+
+    try {
+      await setWorldPrompt(assemblePrompt({ base: placeBrief.worldPrompt, movement, event }));
+      if (agentRunningRef.current) {
+        appendAgentLog(event === "night" ? "Night condition applied. Reassessing the route." : "Clear condition restored.");
+      }
+    } catch {
+      appendAgentLog("Scenario update failed. Holding the current condition.");
+    }
+  }
   async function runAgentTick() {
     if (!agentRunningRef.current || !placeBrief || !seedPreview) return;
 
@@ -187,7 +209,7 @@ function TakeZeroConsole() {
         body: JSON.stringify({
           frame,
           mission,
-          event: "clear",
+          event: activeEventRef.current,
           log: agentLogRef.current,
           lastAction: agentActionRef.current,
         }),
@@ -204,7 +226,7 @@ function TakeZeroConsole() {
       });
       if (nextMovementLayer !== agentMovementRef.current) {
         await setWorldPrompt(
-          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: "clear" }),
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: activeEventRef.current }),
         );
         agentMovementRef.current = nextMovementLayer;
       }
@@ -260,7 +282,7 @@ function TakeZeroConsole() {
       if (nextMovementLayer !== movementLayer && placeBrief) {
         movementLayer = nextMovementLayer;
         void setWorldPrompt(
-          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: "clear" }),
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: activeEventRef.current }),
         ).catch(() => undefined);
       }
 
@@ -291,11 +313,11 @@ function TakeZeroConsole() {
       void setWalkAction({ longitudinal: "idle", horizontal: "idle", vertical: "idle" });
       if (placeBrief && movementLayer === "moving") {
         void setWorldPrompt(
-          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: "clear" }),
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: activeEventRef.current }),
         ).catch(() => undefined);
       }
     };
-  }, [worldPhase, walkMode, agentState, placeBrief, setWalkAction, setWorldPrompt]);
+  }, [worldPhase, walkMode, agentState, activeEvent, placeBrief, setWalkAction, setWorldPrompt]);
   return (
     <main className="console-shell">
       <header className="topbar">
@@ -363,6 +385,7 @@ function TakeZeroConsole() {
                 <span>SCOUT-01</span>
                 <span>{agentState === "running" ? actionLabel : agentState.toUpperCase()}</span>
                 <span>{Math.round(currentAction.confidence * 100)}%</span>
+                <span>{activeEvent.toUpperCase()}</span>
               </div>
             )}
             {worldPhase === "streaming" ? (
@@ -397,6 +420,10 @@ function TakeZeroConsole() {
             placeholder="e.g. Find the nearest door"
             disabled={worldPhase !== "streaming"}
           />
+          <div className="scenario-controls" aria-label="Scenario controls">
+            <button type="button" className={activeEvent === "clear" ? "active" : ""} onClick={() => void selectScenario("clear")} disabled={worldPhase !== "streaming"}>CLEAR</button>
+            <button type="button" className={activeEvent === "night" ? "active" : ""} onClick={() => void selectScenario("night")} disabled={worldPhase !== "streaming"}>NIGHT</button>
+          </div>
           <button
             className={`rehearse-button ${agentState}`}
             type="button"
