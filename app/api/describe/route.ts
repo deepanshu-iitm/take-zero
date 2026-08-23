@@ -22,13 +22,22 @@ const fallbackBrief: PlaceBrief = {
   title: "PHOTO-GROUNDED LOCATION",
   landmarks: [],
   worldPrompt:
-    "A first-person video of the uploaded real place at eye level. Preserve the layout, materials, objects, lighting, and depth visible in the reference image. Documentary realism. The viewer stands still. The room is steady and sharp.",
+    "A first-person video of the uploaded real place at eye level. Preserve the layout, materials, objects, lighting, and depth visible in the reference image. Documentary realism.",
 };
 
 function getOutputText(response: VisionResponse) {
   return response.output
     ?.flatMap((item) => item.content ?? [])
     .find((content) => content.type === "output_text")?.text;
+}
+
+function isValidBasePrompt(prompt: string) {
+  const words = prompt.trim().split(/\s+/);
+  return (
+    /^A first-person video of\b/i.test(prompt.trim()) &&
+    words.length <= 280 &&
+    !/\b(walking|running|exploring|panning|tilting|dolly|zooming|orbiting|flying)\b/i.test(prompt)
+  );
 }
 
 function parseBrief(output: string | undefined): PlaceBrief {
@@ -40,7 +49,11 @@ function parseBrief(output: string | undefined): PlaceBrief {
       ? parsed.landmarks.filter((landmark): landmark is string => typeof landmark === "string").slice(0, 5)
       : [];
 
-    if (typeof parsed.worldPrompt !== "string" || parsed.worldPrompt.trim().length < 24) {
+    if (
+      typeof parsed.worldPrompt !== "string" ||
+      parsed.worldPrompt.trim().length < 24 ||
+      !isValidBasePrompt(parsed.worldPrompt)
+    ) {
       return { ...fallbackBrief, landmarks };
     }
 
@@ -86,7 +99,7 @@ export async function POST(request: Request) {
         model: process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
         store: false,
         instructions:
-          "You are the spatial perception layer for Take Zero, a real-world rehearsal console. Analyze only what is visibly supported by the photo. Return strict JSON with keys title, landmarks, and worldPrompt. title: a concise uppercase neutral location label, maximum 48 characters. landmarks: up to five short visible anchors such as doors, stairs, desk, corridor, vehicle, shelf, or window. worldPrompt: one precise first-person world-generation prompt that preserves visible geometry, object positions, materials, lighting, depth, and orientation. Include documentary realism and a steady eye-level camera. Do not invent unseen rooms, people, hazards, labels, or measurements.",
+          "You are the spatial perception layer for Take Zero, a real-world rehearsal console. Analyze only what is visibly supported by the photo. Return strict JSON with keys title, landmarks, and worldPrompt. title: a concise uppercase neutral location label, maximum 48 characters. landmarks: up to five short visible anchors such as doors, stairs, desk, corridor, vehicle, shelf, or window. worldPrompt: a precise static scene prompt under 280 words that begins exactly with A first-person video of and preserves visible geometry, object positions, materials, lighting, depth, and orientation. Use documentary realism and eye-level perspective. Never use camera verbs (pan, tilt, dolly, zoom, orbit, fly) or motion verbs (walking, running, exploring). Do not invent unseen rooms, people, hazards, labels, or measurements.",
         input: [
           {
             role: "user",

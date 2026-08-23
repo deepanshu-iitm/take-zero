@@ -24,10 +24,11 @@ function rewriteBaseForEvent(base: string, event: ScenarioEvent) {
   if (event !== "night") return base;
 
   return base
+    .replace(/\bbright\s+overhead\s+lights?\b/gi, "dim overhead fixtures")
+    .replace(/\b(?:cool|warm|white)?\s*fluorescent(?:\s+office)?\s+(?:light|lighting|lights)\b/gi, "dim interior lighting")
     .replace(/\bbright daylight\b/gi, "muted ambient light")
-    .replace(/\bdaylight\b/gi, "dark exterior")
-    .replace(/\bsunny\b/gi, "dim")
-    .replace(/\bfluorescent lighting\b/gi, "muted interior lighting")
+    .replace(/\b(daylight|sunlight)\b/gi, "dark exterior")
+    .replace(/\b(sunlit|sunny|daytime|bright)\b/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
