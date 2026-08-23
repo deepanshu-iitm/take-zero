@@ -190,7 +190,13 @@ function TakeZeroConsole() {
     try {
       await setWorldPrompt(assemblePrompt({ base: placeBrief.worldPrompt, movement, event }));
       if (agentRunningRef.current) {
-        appendAgentLog(event === "night" ? "Night condition applied. Reassessing the route." : "Clear condition restored.");
+        appendAgentLog(
+          event === "night"
+            ? "Night condition applied. Reassessing the route."
+            : event === "obstacle"
+              ? "Route obstruction applied. Reassessing the route."
+              : "Clear condition restored.",
+        );
       }
     } catch {
       appendAgentLog("Scenario update failed. Holding the current condition.");
@@ -423,6 +429,7 @@ function TakeZeroConsole() {
           <div className="scenario-controls" aria-label="Scenario controls">
             <button type="button" className={activeEvent === "clear" ? "active" : ""} onClick={() => void selectScenario("clear")} disabled={worldPhase !== "streaming"}>CLEAR</button>
             <button type="button" className={activeEvent === "night" ? "active" : ""} onClick={() => void selectScenario("night")} disabled={worldPhase !== "streaming"}>NIGHT</button>
+            <button type="button" className={activeEvent === "obstacle" ? "active" : ""} onClick={() => void selectScenario("obstacle")} disabled={worldPhase !== "streaming"}>OBSTACLE</button>
           </div>
           <button
             className={`rehearse-button ${agentState}`}
