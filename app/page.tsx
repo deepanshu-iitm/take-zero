@@ -27,6 +27,12 @@ type FrameSource = "waiting" | "live" | "seed";
 const MAX_AGENT_TICKS = 8;
 const MAX_CONSECUTIVE_FORWARD_TICKS = 2;
 
+function commandLabel(action: AgentAction) {
+  if (action.movement !== "idle") return action.movement.toUpperCase();
+  if (action.look_horizontal !== "idle") return `LOOK ${action.look_horizontal.toUpperCase()}`;
+  return "HOLD";
+}
+
 const idleAction: AgentAction = {
   movement: "idle",
   look_horizontal: "idle",
@@ -67,14 +73,7 @@ function TakeZeroConsole() {
   const connectionLabel =
     status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
   const isConnecting = status === "connecting" || status === "waiting";
-  const actionLabel =
-    currentAction.movement !== "idle"
-      ? currentAction.movement.toUpperCase()
-      : currentAction.look_horizontal !== "idle"
-        ? `LOOK ${currentAction.look_horizontal.toUpperCase()}`
-        : currentAction.look_vertical !== "idle"
-          ? `LOOK ${currentAction.look_vertical.toUpperCase()}`
-          : "HOLD";
+  const actionLabel = commandLabel(currentAction);
 
   async function toggleConnection() {
     setConnectionError(null);
@@ -263,7 +262,7 @@ function TakeZeroConsole() {
 
       agentActionRef.current = effectiveAction;
       setCurrentAction(effectiveAction);
-      appendAgentLog(effectiveAction.say);
+      appendAgentLog(`${commandLabel(effectiveAction)} — ${effectiveAction.say}`);
       agentTickRef.current += 1;
 
       if (action.status === "done") {
