@@ -28,7 +28,7 @@ const idleAction: AgentAction = {
   look_horizontal: "idle",
   look_vertical: "idle",
   say: "Scout is holding position.",
-  status: "stuck",
+  status: "progress",
   confidence: 0,
 };
 
