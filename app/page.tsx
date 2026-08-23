@@ -15,7 +15,7 @@ type PlaceBrief = {
 type AgentAction = {
   movement: "idle" | "forward" | "back";
   look_horizontal: "idle" | "left" | "right";
-  look_vertical: "idle" | "up" | "down";
+  look_vertical: "idle";
   say: string;
   status: "progress" | "done" | "stuck";
   confidence: number;
@@ -268,7 +268,7 @@ function TakeZeroConsole() {
 
       agentTimerRef.current = window.setTimeout(() => {
         void runAgentTick();
-      }, 2_000);
+      }, 3_000);
     } catch {
       await stopAgent("error", "Scout lost its observation feed. Holding position.");
     }

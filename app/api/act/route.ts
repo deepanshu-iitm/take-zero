@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 type AgentAction = {
   movement: "idle" | "forward" | "back";
   look_horizontal: "idle" | "left" | "right";
-  look_vertical: "idle" | "up" | "down";
+  look_vertical: "idle";
   say: string;
   status: "progress" | "done" | "stuck";
   confidence: number;
@@ -31,7 +31,7 @@ const idleAction: AgentAction = {
 
 const movements = new Set<AgentAction["movement"]>(["idle", "forward", "back"]);
 const horizontalLooks = new Set<AgentAction["look_horizontal"]>(["idle", "left", "right"]);
-const verticalLooks = new Set<AgentAction["look_vertical"]>(["idle", "up", "down"]);
+const verticalLooks = new Set<AgentAction["look_vertical"]>(["idle"]);
 const statuses = new Set<AgentAction["status"]>(["progress", "done", "stuck"]);
 const events = new Set(["clear", "night", "obstacle", "rain", "crowd", "emergency"]);
 
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
               properties: {
                 movement: { type: "string", enum: ["idle", "forward", "back"] },
                 look_horizontal: { type: "string", enum: ["idle", "left", "right"] },
-                look_vertical: { type: "string", enum: ["idle", "up", "down"] },
+                look_vertical: { type: "string", enum: ["idle"] },
                 say: { type: "string" },
                 status: { type: "string", enum: ["progress", "done", "stuck"] },
                 confidence: { type: "number" },
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
           },
         },
         instructions:
-          "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Prefer forward plus turning; never strafe. Hold decisions rather than flickering. A target merely visible at a distance is discovery, not completion: return progress and approach it. Return done only when the current frame confirms the requested target is close and the endpoint is visually identifiable; for a doorway, it must be close enough to identify the opening or handle. If no route can be confirmed after several tries, return stuck with movement idle. Your say field is one short present-tense sentence describing what you see and do. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.",
+          "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Keep look_vertical idle. Prefer steady forward motion with a gentle left or right turn only when the path requires it; never strafe. Use back only for a confirmed obstruction. Hold decisions rather than flickering. A target merely visible at a distance is discovery, not completion: return progress and approach it. Return done only when the current frame confirms the requested target is close and the endpoint is visually identifiable; for a doorway, it must be close enough to identify the opening or handle. If no route can be confirmed after several tries, return stuck with movement idle. Your say field is one short present-tense sentence describing what you see and do. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.",
         input: [
           {
             role: "user",
