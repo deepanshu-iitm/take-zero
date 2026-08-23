@@ -25,7 +25,7 @@ const idleAction: AgentAction = {
   look_horizontal: "idle",
   look_vertical: "idle",
   say: "I cannot confirm a route. Holding position.",
-  status: "stuck",
+  status: "progress",
   confidence: 0,
 };
 
@@ -50,8 +50,8 @@ function extractJson(output: string) {
   const end = trimmed.lastIndexOf("}");
   return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
 }
-function parseAction(output: string | undefined): AgentAction {
-  if (!output) return idleAction;
+function parseAction(output: string | undefined): AgentAction | null {
+  if (!output) return null;
 
   try {
     const parsed = JSON.parse(extractJson(output)) as Partial<AgentAction>;
@@ -63,7 +63,7 @@ function parseAction(output: string | undefined): AgentAction {
       typeof parsed.say !== "string" ||
       !parsed.say.trim()
     ) {
-      return idleAction;
+      return null;
     }
 
     return {
@@ -78,10 +78,9 @@ function parseAction(output: string | undefined): AgentAction {
           : 0,
     };
   } catch {
-    return idleAction;
+    return null;
   }
 }
-
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -160,10 +159,17 @@ export async function POST(request: Request) {
       }),
     });
 
-    if (!response.ok) return NextResponse.json(idleAction);
+    if (!response.ok) {
+      return NextResponse.json({ error: "Scout decision is temporarily unavailable." }, { status: 502 });
+    }
 
-    return NextResponse.json(parseAction(getOutputText((await response.json()) as ModelResponse)));
+    const action = parseAction(getOutputText((await response.json()) as ModelResponse));
+    if (!action) {
+      return NextResponse.json({ error: "Scout decision could not be understood." }, { status: 502 });
+    }
+
+    return NextResponse.json(action);
   } catch {
-    return NextResponse.json(idleAction);
+    return NextResponse.json({ error: "Scout decision is temporarily unavailable." }, { status: 502 });
   }
 }
