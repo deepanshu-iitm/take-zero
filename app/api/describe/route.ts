@@ -82,7 +82,7 @@ function parseBrief(output: string | undefined): PlaceBrief {
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.VISION_POLICY_API_KEY ?? process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ error: "Photo analysis is not configured." }, { status: 503 });

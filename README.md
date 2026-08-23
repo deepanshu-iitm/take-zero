@@ -199,9 +199,10 @@ Create `.env.local` locally and keep it out of version control.
 
 ```bash
 REACTOR_API_KEY=your_key_here
+VISION_POLICY_API_KEY=your_private_key_here
 ```
 
-The remaining server-only credentials are deliberately not committed. Configure them locally and in the deployment environment.
+Use a provider-compatible private key for `VISION_POLICY_API_KEY`. Keep all credential values out of version control and configure the same variables in the deployment environment.
 
 ### Run
 
