@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 const MODEL_NAME = "reactor/lingbot-world-2";
-const TOKEN_LIFETIME_SECONDS = 60 * 60;
 
 export async function POST() {
   const apiKey = process.env.REACTOR_API_KEY;
@@ -21,12 +20,11 @@ export async function POST() {
         "Reactor-API-Key": apiKey,
       },
       body: JSON.stringify({
-        expires_after: TOKEN_LIFETIME_SECONDS,
         authorization_details: [
           {
             type: "session",
             resources: { models: { match: [MODEL_NAME] } },
-            constraints: { max_sessions: 1 },
+            constraints: { max_sessions: 10 },
           },
         ],
       }),
