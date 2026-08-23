@@ -6,6 +6,8 @@
 
 Built for **Inception Hackathon 2.0**  |  Robotics & Simulation
 
+![Take Zero console](public/demo/takezero.png)
+
 ---
 
 ## The premise
@@ -199,10 +201,13 @@ Create `.env.local` locally and keep it out of version control.
 
 ```bash
 REACTOR_API_KEY=your_key_here
-VISION_POLICY_API_KEY=your_private_key_here
+AI_PROVIDER=anthropic
+AI_API_KEY=your_private_key_here
+# Optional when AI_PROVIDER=anthropic
+# ANTHROPIC_MODEL=claude-sonnet-4-6
 ```
 
-Use a provider-compatible private key for `VISION_POLICY_API_KEY`. Keep all credential values out of version control and configure the same variables in the deployment environment.
+`AI_API_KEY` is an Anthropic API key used server-side by `/api/describe` to understand the seed photo and `/api/act` to choose SCOUT-01 actions. Set `AI_PROVIDER=anthropic`. `ANTHROPIC_MODEL` optionally selects the model and defaults to `claude-sonnet-4-6`. None of these values are sent to the browser. Keep them out of version control and configure the same variables in the deployment environment.
 
 ### Run
 
