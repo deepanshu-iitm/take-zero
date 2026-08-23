@@ -45,6 +45,7 @@ function TakeZeroConsole() {
   const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
   const [mission, setMission] = useState("Find the nearest door");
   const [agentState, setAgentState] = useState<AgentState>("idle");
+  const [currentAction, setCurrentAction] = useState<AgentAction>(idleAction);
   const [agentLog, setAgentLog] = useState<string[]>([]);
   const agentRunningRef = useRef(false);
   const agentTimerRef = useRef<number | null>(null);
@@ -57,6 +58,14 @@ function TakeZeroConsole() {
   const connectionLabel =
     status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
   const isConnecting = status === "connecting" || status === "waiting";
+  const actionLabel =
+    currentAction.movement !== "idle"
+      ? currentAction.movement.toUpperCase()
+      : currentAction.look_horizontal !== "idle"
+        ? `LOOK ${currentAction.look_horizontal.toUpperCase()}`
+        : currentAction.look_vertical !== "idle"
+          ? `LOOK ${currentAction.look_vertical.toUpperCase()}`
+          : "HOLD";
 
   async function toggleConnection() {
     setConnectionError(null);
@@ -201,6 +210,7 @@ function TakeZeroConsole() {
       }
 
       agentActionRef.current = action;
+      setCurrentAction(action);
       appendAgentLog(action.say);
 
       if (action.status === "done") {
@@ -230,6 +240,7 @@ function TakeZeroConsole() {
     setWalkMode(false);
     agentRunningRef.current = true;
     agentActionRef.current = idleAction;
+    setCurrentAction(idleAction);
     agentMovementRef.current = "still";
     agentLogRef.current = ["SCOUT-01 is observing the twin."];
     setAgentLog(agentLogRef.current);
@@ -347,6 +358,13 @@ function TakeZeroConsole() {
           <div ref={twinViewportRef} className="twin-viewport">
             <div className="viewport-noise" aria-hidden="true" />
             <div className="viewport-grid" aria-hidden="true" />
+            {worldPhase === "streaming" && (
+              <div className={`agent-hud ${agentState}`}>
+                <span>SCOUT-01</span>
+                <span>{agentState === "running" ? actionLabel : agentState.toUpperCase()}</span>
+                <span>{Math.round(currentAction.confidence * 100)}%</span>
+              </div>
+            )}
             {worldPhase === "streaming" ? (
               <LingbotWorld2MainVideoView
                 videoObjectFit="cover"
