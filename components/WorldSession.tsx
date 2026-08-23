@@ -49,6 +49,10 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
     await world.connect(await getToken());
   }, [world]);
 
+  const disconnect = useCallback(async () => {
+    await world.disconnect();
+  }, [world]);
+
   useLingbotWorld2Message((message) => {
     if (message.type === "image_accepted") {
       imageAccepted.current?.();
@@ -98,11 +102,11 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
     () => ({
       status: world.status,
       connect,
-      disconnect: world.disconnect,
+      disconnect,
       initializeWorld,
       setWalkAction,
     }),
-    [world.status, connect, world.disconnect, initializeWorld, setWalkAction],
+    [world.status, connect, disconnect, initializeWorld, setWalkAction],
   );
 
   return <WorldSessionContext.Provider value={value}>{children}</WorldSessionContext.Provider>;

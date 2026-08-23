@@ -30,10 +30,26 @@ function TakeZeroConsole() {
   const [mission, setMission] = useState("Find the nearest door");
   const [rehearsalState, setRehearsalState] = useState<"idle" | "planning" | "ready" | "error">("idle");
   const [rehearsalPlan, setRehearsalPlan] = useState<RehearsalPlan | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const connectionLabel =
     status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
   const isConnecting = status === "connecting" || status === "waiting";
+
+  async function toggleConnection() {
+    setConnectionError(null);
+    try {
+      if (status === "disconnected") {
+        await connect();
+        return;
+      }
+      await disconnect();
+      setWalkMode(false);
+      setWorldPhase("idle");
+    } catch {
+      setConnectionError(status === "disconnected" ? "CONNECTION FAILED" : "DISCONNECT FAILED");
+    }
+  }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -163,7 +179,7 @@ function TakeZeroConsole() {
           className={`system-status ${status}`}
           type="button"
           onClick={() => {
-            void (status === "disconnected" ? connect() : disconnect()).catch(() => undefined);
+            void toggleConnection();
           }}
           aria-label={status === "disconnected" ? "Connect to Reactor" : "Disconnect from Reactor"}
         >
@@ -173,7 +189,7 @@ function TakeZeroConsole() {
           <span>{status === "disconnected" ? "Connect" : isConnecting ? "Cancel" : "Disconnect"}</span>
         </button>
       </header>
-
+      {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}
       <section className="workspace" aria-label="Take Zero console">
         <aside className="seed-panel panel">
           <div className="panel-heading">
