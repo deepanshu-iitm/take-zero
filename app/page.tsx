@@ -21,7 +21,7 @@ type AgentAction = {
   confidence: number;
 };
 
-type AgentState = "idle" | "running" | "done" | "stuck" | "error";
+type AgentState = "idle" | "running" | "done" | "stuck" | "timeboxed" | "error";
 type FrameSource = "waiting" | "live" | "seed";
 
 const MAX_AGENT_TICKS = 8;
@@ -280,8 +280,8 @@ function TakeZeroConsole() {
 
       if (agentTickRef.current >= MAX_AGENT_TICKS) {
         await stopAgent(
-          "stuck",
-          "Rehearsal limit reached. Retake the photo or change the mission.",
+          "timeboxed",
+          "Rehearsal timebox reached. Try a nearer visible target.",
         );
         return;
       }
