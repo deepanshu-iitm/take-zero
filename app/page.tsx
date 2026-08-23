@@ -10,6 +10,12 @@ type PlaceBrief = {
   worldPrompt: string;
 };
 
+type RehearsalPlan = {
+  objective: string;
+  steps: string[];
+  watchout: string;
+};
+
 function TakeZeroConsole() {
   const { status, connect, disconnect, initializeWorld, setWalkAction } = useWorldSession();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,8 +26,10 @@ function TakeZeroConsole() {
   const [seedName, setSeedName] = useState("NO SOURCE IMAGE");
   const [seedSize, setSeedSize] = useState("—");
   const [placeLabel, setPlaceLabel] = useState("UNANALYZED SEED");
+  const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
   const [mission, setMission] = useState("Find the nearest door");
-  const [rehearsalState, setRehearsalState] = useState<"idle" | "queued">("idle");
+  const [rehearsalState, setRehearsalState] = useState<"idle" | "planning" | "ready" | "error">("idle");
+  const [rehearsalPlan, setRehearsalPlan] = useState<RehearsalPlan | null>(null);
 
   const connectionLabel =
     status === "ready" ? "World ready" : status === "waiting" ? "Waiting for GPU" : status === "connecting" ? "Connecting" : "System standby";
@@ -39,6 +47,9 @@ function TakeZeroConsole() {
       setSeedName(file.name.toUpperCase());
       setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
       setPlaceLabel("UNANALYZED SEED");
+      setPlaceBrief(null);
+      setRehearsalPlan(null);
+      setRehearsalState("idle");
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -51,6 +62,9 @@ function TakeZeroConsole() {
     setSeedName("NO SOURCE IMAGE");
     setSeedSize("—");
     setPlaceLabel("UNANALYZED SEED");
+    setPlaceBrief(null);
+    setRehearsalPlan(null);
+    setRehearsalState("idle");
   }
 
   async function initializeTwin() {
@@ -70,6 +84,7 @@ function TakeZeroConsole() {
       }
 
       setPlaceLabel(brief.title);
+      setPlaceBrief(brief);
       await initializeWorld(seedFile, brief.worldPrompt);
       setWorldPhase("streaming");
     } catch {
@@ -77,8 +92,31 @@ function TakeZeroConsole() {
     }
   }
 
-  function toggleRehearsal() {
-    setRehearsalState((current) => (current === "queued" ? "idle" : "queued"));
+  async function toggleRehearsal() {
+    if (rehearsalState === "planning") return;
+    if (rehearsalState === "ready") {
+      setRehearsalPlan(null);
+      setRehearsalState("idle");
+      return;
+    }
+    if (!placeBrief) return;
+
+    setRehearsalState("planning");
+    try {
+      const response = await fetch("/api/rehearse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mission, ...placeBrief }),
+      });
+      const plan = (await response.json().catch(() => null)) as RehearsalPlan | null;
+      if (!response.ok || !plan?.steps?.length) throw new Error("Mission planning failed");
+
+      setRehearsalPlan(plan);
+      setRehearsalState("ready");
+    } catch {
+      setRehearsalPlan(null);
+      setRehearsalState("error");
+    }
   }
 
   useEffect(() => {
@@ -212,11 +250,21 @@ function TakeZeroConsole() {
             className={`rehearse-button ${rehearsalState}`}
             type="button"
             onClick={toggleRehearsal}
-            disabled={worldPhase !== "streaming" || !mission.trim()}
+            disabled={worldPhase !== "streaming" || !mission.trim() || rehearsalState === "planning"}
           >
-            <span>{rehearsalState === "queued" ? "STOP" : "REHEARSE"}</span>
-            <span aria-hidden="true">{rehearsalState === "queued" ? "×" : "↗"}</span>
+            <span>{rehearsalState === "planning" ? "PLANNING" : rehearsalState === "ready" ? "CLEAR" : "REHEARSE"}</span>
+            <span aria-hidden="true">{rehearsalState === "ready" ? "×" : "↗"}</span>
           </button>
+          {rehearsalState === "error" && <p className="rehearsal-error">PLAN UNAVAILABLE</p>}
+          {rehearsalPlan && (
+            <div className="rehearsal-plan">
+              <span className="plan-label">SIMULATED PLAN</span>
+              <p className="plan-objective">{rehearsalPlan.objective}</p>
+              <ol>{rehearsalPlan.steps.map((step) => <li key={step}>{step}</li>)}</ol>
+              <p className="plan-watchout"><span>WATCHOUT</span>{rehearsalPlan.watchout}</p>
+            </div>
+          )}
+
         </aside>
       </section>
     </main>
