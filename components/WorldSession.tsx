@@ -37,6 +37,7 @@ async function getToken() {
     throw new Error(body.error ?? "Unable to create a Reactor session token.");
   }
   const { jwt } = (await response.json()) as { jwt: string };
+  await new Promise((resolve) => window.setTimeout(resolve, 3_000));
   return jwt;
 }
 
