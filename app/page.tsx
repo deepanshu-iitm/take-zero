@@ -3,6 +3,7 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
+import { assemblePrompt } from "@/lib/prompt";
 
 type PlaceBrief = {
   title: string;
@@ -17,7 +18,7 @@ type RehearsalPlan = {
 };
 
 function TakeZeroConsole() {
-  const { status, connect, disconnect, initializeWorld, setWalkAction } = useWorldSession();
+  const { status, connect, disconnect, initializeWorld, setWorldPrompt, setWalkAction } = useWorldSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [seedPreview, setSeedPreview] = useState<string | null>(null);
   const [seedFile, setSeedFile] = useState<File | null>(null);
@@ -101,7 +102,10 @@ function TakeZeroConsole() {
 
       setPlaceLabel(brief.title);
       setPlaceBrief(brief);
-      await initializeWorld(seedFile, brief.worldPrompt);
+      await initializeWorld(
+        seedFile,
+        assemblePrompt({ base: brief.worldPrompt, movement: "still", event: "clear" }),
+      );
       setWorldPhase("streaming");
     } catch {
       setWorldPhase("error");
@@ -140,9 +144,20 @@ function TakeZeroConsole() {
 
     const pressed = new Set<string>();
     const supported = new Set(["KeyW", "KeyS", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    let movementLayer: "still" | "moving" = "still";
     const sendAction = () => {
+      const longitudinal = pressed.has("KeyW") ? "forward" : pressed.has("KeyS") ? "back" : "idle";
+      const nextMovementLayer = longitudinal === "idle" ? "still" : "moving";
+
+      if (nextMovementLayer !== movementLayer && placeBrief) {
+        movementLayer = nextMovementLayer;
+        void setWorldPrompt(
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: "clear" }),
+        ).catch(() => undefined);
+      }
+
       void setWalkAction({
-        longitudinal: pressed.has("KeyW") ? "forward" : pressed.has("KeyS") ? "back" : "idle",
+        longitudinal,
         horizontal: pressed.has("ArrowLeft") ? "left" : pressed.has("ArrowRight") ? "right" : "idle",
         vertical: pressed.has("ArrowUp") ? "up" : pressed.has("ArrowDown") ? "down" : "idle",
       });
@@ -166,8 +181,13 @@ function TakeZeroConsole() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       void setWalkAction({ longitudinal: "idle", horizontal: "idle", vertical: "idle" });
+      if (placeBrief && movementLayer === "moving") {
+        void setWorldPrompt(
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: "clear" }),
+        ).catch(() => undefined);
+      }
     };
-  }, [worldPhase, walkMode, setWalkAction]);
+  }, [worldPhase, walkMode, placeBrief, setWalkAction, setWorldPrompt]);
   return (
     <main className="console-shell">
       <header className="topbar">
