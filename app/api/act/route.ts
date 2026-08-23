@@ -1,0 +1,140 @@
+import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
+type AgentAction = {
+  movement: "idle" | "forward" | "back";
+  look_horizontal: "idle" | "left" | "right";
+  look_vertical: "idle" | "up" | "down";
+  say: string;
+  status: "progress" | "done" | "stuck";
+  confidence: number;
+};
+
+type ModelResponse = {
+  output?: Array<{
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+};
+
+const idleAction: AgentAction = {
+  movement: "idle",
+  look_horizontal: "idle",
+  look_vertical: "idle",
+  say: "I cannot confirm a route. Holding position.",
+  status: "stuck",
+  confidence: 0,
+};
+
+const movements = new Set<AgentAction["movement"]>(["idle", "forward", "back"]);
+const horizontalLooks = new Set<AgentAction["look_horizontal"]>(["idle", "left", "right"]);
+const verticalLooks = new Set<AgentAction["look_vertical"]>(["idle", "up", "down"]);
+const statuses = new Set<AgentAction["status"]>(["progress", "done", "stuck"]);
+const events = new Set(["clear", "night", "obstacle", "rain", "crowd", "emergency"]);
+
+function getOutputText(response: ModelResponse) {
+  return response.output
+    ?.flatMap((item) => item.content ?? [])
+    .find((content) => content.type === "output_text")?.text;
+}
+
+function parseAction(output: string | undefined): AgentAction {
+  if (!output) return idleAction;
+
+  try {
+    const parsed = JSON.parse(output) as Partial<AgentAction>;
+    if (
+      !movements.has(parsed.movement as AgentAction["movement"]) ||
+      !horizontalLooks.has(parsed.look_horizontal as AgentAction["look_horizontal"]) ||
+      !verticalLooks.has(parsed.look_vertical as AgentAction["look_vertical"]) ||
+      !statuses.has(parsed.status as AgentAction["status"]) ||
+      typeof parsed.say !== "string" ||
+      !parsed.say.trim()
+    ) {
+      return idleAction;
+    }
+
+    return {
+      movement: parsed.movement as AgentAction["movement"],
+      look_horizontal: parsed.look_horizontal as AgentAction["look_horizontal"],
+      look_vertical: parsed.look_vertical as AgentAction["look_vertical"],
+      say: parsed.say.trim().slice(0, 180),
+      status: parsed.status as AgentAction["status"],
+      confidence:
+        typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+          ? Math.max(0, Math.min(1, parsed.confidence))
+          : 0,
+    };
+  } catch {
+    return idleAction;
+  }
+}
+
+export async function POST(request: Request) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "Agent control is not configured." }, { status: 503 });
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    frame?: unknown;
+    mission?: unknown;
+    event?: unknown;
+    log?: unknown;
+    lastAction?: unknown;
+  } | null;
+
+  if (
+    typeof body?.frame !== "string" ||
+    !body.frame.startsWith("data:image/") ||
+    body.frame.length > 10_000_000 ||
+    typeof body.mission !== "string" ||
+    !body.mission.trim() ||
+    typeof body.event !== "string" ||
+    !events.has(body.event)
+  ) {
+    return NextResponse.json({ error: "Agent context is incomplete." }, { status: 400 });
+  }
+
+  const log = Array.isArray(body.log)
+    ? body.log.filter((line): line is string => typeof line === "string" && line.trim().length > 0).slice(-6)
+    : [];
+  const lastAction = typeof body.lastAction === "object" && body.lastAction ? body.lastAction : idleAction;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.WORLD_ACT_MODEL ?? process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
+        store: false,
+        instructions:
+          "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Prefer forward plus turning; never strafe. Hold decisions rather than flickering. If the mission is visibly complete, return status done with movement idle. If no route can be confirmed after several tries, return status stuck with movement idle. Your say field is one short present-tense sentence describing what you see and do. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.",
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `MISSION: ${body.mission.trim().slice(0, 300)}\nEVENT: ${body.event}\nRECENT LOG: ${log.join(" | ") || "None"}\nLAST ACTION: ${JSON.stringify(lastAction)}`,
+              },
+              { type: "input_image", image_url: body.frame, detail: "low" },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) return NextResponse.json(idleAction);
+
+    return NextResponse.json(parseAction(getOutputText((await response.json()) as ModelResponse)));
+  } catch {
+    return NextResponse.json(idleAction);
+  }
+}
