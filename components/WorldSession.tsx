@@ -45,6 +45,10 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
   const world = useLingbotWorld2();
   const imageAccepted = useRef<(() => void) | null>(null);
 
+  const connect = useCallback(async () => {
+    await world.connect(await getToken());
+  }, [world]);
+
   useLingbotWorld2Message((message) => {
     if (message.type === "image_accepted") {
       imageAccepted.current?.();
@@ -93,12 +97,12 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       status: world.status,
-      connect: world.connect,
+      connect,
       disconnect: world.disconnect,
       initializeWorld,
       setWalkAction,
     }),
-    [world.status, world.connect, world.disconnect, initializeWorld, setWalkAction],
+    [world.status, connect, world.disconnect, initializeWorld, setWalkAction],
   );
 
   return <WorldSessionContext.Provider value={value}>{children}</WorldSessionContext.Provider>;
@@ -106,7 +110,7 @@ function WorldSessionBridge({ children }: { children: ReactNode }) {
 
 export function WorldSessionProvider({ children }: { children: ReactNode }) {
   return (
-    <LingbotWorld2Provider getJwt={getToken}>
+    <LingbotWorld2Provider>
       <WorldSessionBridge>{children}</WorldSessionBridge>
     </LingbotWorld2Provider>
   );
