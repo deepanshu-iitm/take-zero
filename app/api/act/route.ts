@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { getAIConfig, toAnthropicImage } from "@/lib/ai";
+
 export const runtime = "nodejs";
 
 type AgentAction = {
@@ -20,6 +22,13 @@ type ModelResponse = {
   }>;
 };
 
+type AnthropicResponse = {
+  content?: Array<{
+    type?: string;
+    text?: string;
+  }>;
+};
+
 const idleAction: AgentAction = {
   movement: "idle",
   look_horizontal: "idle",
@@ -35,10 +44,31 @@ const verticalLooks = new Set<AgentAction["look_vertical"]>(["idle"]);
 const statuses = new Set<AgentAction["status"]>(["progress", "done", "stuck"]);
 const events = new Set(["clear", "night", "obstacle", "rain", "crowd", "emergency"]);
 
+const scoutInstructions =
+  "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Keep look_vertical idle. Use only one motion at a time: move forward or back with look_horizontal idle, or turn left or right while movement is idle. Prefer steady forward motion and turn only when the path requires it; never strafe. Use back only for a confirmed obstruction. Hold decisions rather than flickering. A target merely visible at a distance is discovery, not completion: return progress and approach it. Return done only when the current frame confirms the requested target is close and the endpoint is visually identifiable; for a doorway, it must be close enough to identify the opening or handle. If no route can be confirmed after several tries, return stuck with movement idle. Your say field is one short present-tense observation only; never claim or name a movement, turn, or completed action. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.";
+
+const scoutActionSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    movement: { type: "string", enum: ["idle", "forward", "back"] },
+    look_horizontal: { type: "string", enum: ["idle", "left", "right"] },
+    look_vertical: { type: "string", enum: ["idle"] },
+    say: { type: "string" },
+    status: { type: "string", enum: ["progress", "done", "stuck"] },
+    confidence: { type: "number" },
+  },
+  required: ["movement", "look_horizontal", "look_vertical", "say", "status", "confidence"],
+};
+
 function getOutputText(response: ModelResponse) {
   return response.output
     ?.flatMap((item) => item.content ?? [])
     .find((content) => content.type === "output_text")?.text;
+}
+
+function getAnthropicOutputText(response: AnthropicResponse) {
+  return response.content?.find((content) => content.type === "text")?.text;
 }
 
 function extractJson(output: string) {
@@ -50,6 +80,7 @@ function extractJson(output: string) {
   const end = trimmed.lastIndexOf("}");
   return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
 }
+
 function parseAction(output: string | undefined): AgentAction | null {
   if (!output) return null;
 
@@ -81,9 +112,13 @@ function parseAction(output: string | undefined): AgentAction | null {
     return null;
   }
 }
+
 export async function POST(request: Request) {
-  const apiKey = process.env.VISION_POLICY_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const config = getAIConfig();
+  if (!config) {
+    return NextResponse.json({ error: "Configured AI provider is not supported." }, { status: 503 });
+  }
+  if (!config.apiKey) {
     return NextResponse.json({ error: "Agent control is not configured." }, { status: 503 });
   }
 
@@ -111,59 +146,75 @@ export async function POST(request: Request) {
     ? body.log.filter((line): line is string => typeof line === "string" && line.trim().length > 0).slice(-6)
     : [];
   const lastAction = typeof body.lastAction === "object" && body.lastAction ? body.lastAction : idleAction;
+  const context = `MISSION: ${body.mission.trim().slice(0, 300)}\nEVENT: ${body.event}\nRECENT LOG: ${log.join(" | ") || "None"}\nLAST ACTION: ${JSON.stringify(lastAction)}`;
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.WORLD_ACT_MODEL ?? process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
-        store: false,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "scout_action",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                movement: { type: "string", enum: ["idle", "forward", "back"] },
-                look_horizontal: { type: "string", enum: ["idle", "left", "right"] },
-                look_vertical: { type: "string", enum: ["idle"] },
-                say: { type: "string" },
-                status: { type: "string", enum: ["progress", "done", "stuck"] },
-                confidence: { type: "number" },
-              },
-              required: ["movement", "look_horizontal", "look_vertical", "say", "status", "confidence"],
-            },
-          },
-        },
-        instructions:
-          "You are SCOUT-01, a conservative navigation agent inside a first-person world-model video of a real place. You receive the current frame, mission, active scenario, recent log, and last action. Controls persist until changed. Keep look_vertical idle. Use only one motion at a time: move forward or back with look_horizontal idle, or turn left or right while movement is idle. Prefer steady forward motion and turn only when the path requires it; never strafe. Use back only for a confirmed obstruction. Hold decisions rather than flickering. A target merely visible at a distance is discovery, not completion: return progress and approach it. Return done only when the current frame confirms the requested target is close and the endpoint is visually identifiable; for a doorway, it must be close enough to identify the opening or handle. If no route can be confirmed after several tries, return stuck with movement idle. Your say field is one short present-tense observation only; never claim or name a movement, turn, or completed action. Do not claim an action was performed unless the frame supports it. Do not invent geometry, people, hazards, distances, labels, or safety guarantees. Return strict JSON only with movement, look_horizontal, look_vertical, say, status, confidence.",
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: `MISSION: ${body.mission.trim().slice(0, 300)}\nEVENT: ${body.event}\nRECENT LOG: ${log.join(" | ") || "None"}\nLAST ACTION: ${JSON.stringify(lastAction)}`,
-              },
-              { type: "input_image", image_url: body.frame, detail: "low" },
-            ],
-          },
-        ],
-      }),
-    });
+    let output: string | undefined;
 
-    if (!response.ok) {
-      return NextResponse.json({ error: "Scout decision is temporarily unavailable." }, { status: 502 });
+    if (config.provider === "anthropic") {
+      const anthropicImage = toAnthropicImage(body.frame);
+      if (!anthropicImage) {
+        return NextResponse.json({ error: "Scout frame format is not supported." }, { status: 400 });
+      }
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": config.apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_ACT_MODEL ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+          max_tokens: 320,
+          system: scoutInstructions,
+          output_config: { format: { type: "json_schema", schema: scoutActionSchema } },
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: context }, anthropicImage],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        return NextResponse.json({ error: "Scout decision is temporarily unavailable." }, { status: 502 });
+      }
+
+      output = getAnthropicOutputText((await response.json()) as AnthropicResponse);
+    } else {
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.WORLD_ACT_MODEL ?? process.env.WORLD_VISION_MODEL ?? "gpt-5-mini",
+          store: false,
+          text: { format: { type: "json_schema", name: "scout_action", strict: true, schema: scoutActionSchema } },
+          instructions: scoutInstructions,
+          input: [
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: context },
+                { type: "input_image", image_url: body.frame, detail: "low" },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        return NextResponse.json({ error: "Scout decision is temporarily unavailable." }, { status: 502 });
+      }
+
+      output = getOutputText((await response.json()) as ModelResponse);
     }
 
-    const action = parseAction(getOutputText((await response.json()) as ModelResponse));
+    const action = parseAction(output);
     if (!action) {
       return NextResponse.json({ error: "Scout decision could not be understood." }, { status: 502 });
     }
