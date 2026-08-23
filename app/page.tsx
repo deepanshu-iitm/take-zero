@@ -3,6 +3,7 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { LingbotWorld2MainVideoView } from "@reactor-models/lingbot-world-2";
 import { WorldSessionProvider, useWorldSession } from "@/components/WorldSession";
+import { captureVideoFrame } from "@/lib/frame";
 import { assemblePrompt } from "@/lib/prompt";
 
 type PlaceBrief = {
@@ -11,10 +12,24 @@ type PlaceBrief = {
   worldPrompt: string;
 };
 
-type RehearsalPlan = {
-  objective: string;
-  steps: string[];
-  watchout: string;
+type AgentAction = {
+  movement: "idle" | "forward" | "back";
+  look_horizontal: "idle" | "left" | "right";
+  look_vertical: "idle" | "up" | "down";
+  say: string;
+  status: "progress" | "done" | "stuck";
+  confidence: number;
+};
+
+type AgentState = "idle" | "running" | "done" | "stuck" | "error";
+
+const idleAction: AgentAction = {
+  movement: "idle",
+  look_horizontal: "idle",
+  look_vertical: "idle",
+  say: "Scout is holding position.",
+  status: "stuck",
+  confidence: 0,
 };
 
 function TakeZeroConsole() {
@@ -29,8 +44,14 @@ function TakeZeroConsole() {
   const [placeLabel, setPlaceLabel] = useState("UNANALYZED SEED");
   const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
   const [mission, setMission] = useState("Find the nearest door");
-  const [rehearsalState, setRehearsalState] = useState<"idle" | "planning" | "ready" | "error">("idle");
-  const [rehearsalPlan, setRehearsalPlan] = useState<RehearsalPlan | null>(null);
+  const [agentState, setAgentState] = useState<AgentState>("idle");
+  const [agentLog, setAgentLog] = useState<string[]>([]);
+  const agentRunningRef = useRef(false);
+  const agentTimerRef = useRef<number | null>(null);
+  const agentActionRef = useRef<AgentAction>(idleAction);
+  const agentMovementRef = useRef<"still" | "moving">("still");
+  const agentLogRef = useRef<string[]>([]);
+  const twinViewportRef = useRef<HTMLDivElement>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const connectionLabel =
@@ -44,6 +65,7 @@ function TakeZeroConsole() {
         await connect();
         return;
       }
+      await stopAgent("idle");
       await disconnect();
       setWalkMode(false);
       setWorldPhase("idle");
@@ -65,8 +87,9 @@ function TakeZeroConsole() {
       setSeedSize(`${(file.size / 1024 / 1024).toFixed(1)} MB`);
       setPlaceLabel("UNANALYZED SEED");
       setPlaceBrief(null);
-      setRehearsalPlan(null);
-      setRehearsalState("idle");
+      setAgentState("idle");
+      setAgentLog([]);
+      agentLogRef.current = [];
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -80,8 +103,9 @@ function TakeZeroConsole() {
     setSeedSize("—");
     setPlaceLabel("UNANALYZED SEED");
     setPlaceBrief(null);
-    setRehearsalPlan(null);
-    setRehearsalState("idle");
+    setAgentState("idle");
+    setAgentLog([]);
+    agentLogRef.current = [];
   }
 
   async function initializeTwin() {
@@ -112,35 +136,108 @@ function TakeZeroConsole() {
     }
   }
 
-  async function toggleRehearsal() {
-    if (rehearsalState === "planning") return;
-    if (rehearsalState === "ready") {
-      setRehearsalPlan(null);
-      setRehearsalState("idle");
-      return;
-    }
-    if (!placeBrief) return;
+  function appendAgentLog(line: string) {
+    const nextLog = [...agentLogRef.current, line].slice(-6);
+    agentLogRef.current = nextLog;
+    setAgentLog(nextLog);
+  }
 
-    setRehearsalState("planning");
+  async function stopAgent(state: Exclude<AgentState, "running"> = "idle", message?: string) {
+    agentRunningRef.current = false;
+    if (agentTimerRef.current !== null) {
+      window.clearTimeout(agentTimerRef.current);
+      agentTimerRef.current = null;
+    }
+
     try {
-      const response = await fetch("/api/rehearse", {
+      await setWalkAction({ longitudinal: "idle", horizontal: "idle", vertical: "idle" });
+      if (placeBrief && agentMovementRef.current === "moving") {
+        await setWorldPrompt(
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: "still", event: "clear" }),
+        );
+      }
+    } catch {
+      // The session may already be closed; the local agent still needs to stop.
+    }
+
+    agentMovementRef.current = "still";
+    setAgentState(state);
+    if (message) appendAgentLog(message);
+  }
+
+  async function runAgentTick() {
+    if (!agentRunningRef.current || !placeBrief || !seedPreview) return;
+
+    const video = twinViewportRef.current?.querySelector<HTMLVideoElement>("video") ?? null;
+    const frame = captureVideoFrame(video) ?? seedPreview;
+
+    try {
+      const response = await fetch("/api/act", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mission, ...placeBrief }),
+        body: JSON.stringify({
+          frame,
+          mission,
+          event: "clear",
+          log: agentLogRef.current,
+          lastAction: agentActionRef.current,
+        }),
       });
-      const plan = (await response.json().catch(() => null)) as RehearsalPlan | null;
-      if (!response.ok || !plan?.steps?.length) throw new Error("Mission planning failed");
+      const action = (await response.json().catch(() => null)) as AgentAction | null;
+      if (!response.ok || !action?.say) throw new Error("Agent decision failed");
+      if (!agentRunningRef.current) return;
 
-      setRehearsalPlan(plan);
-      setRehearsalState("ready");
+      const nextMovementLayer = action.movement === "idle" ? "still" : "moving";
+      await setWalkAction({
+        longitudinal: action.movement,
+        horizontal: action.look_horizontal,
+        vertical: action.look_vertical,
+      });
+      if (nextMovementLayer !== agentMovementRef.current) {
+        await setWorldPrompt(
+          assemblePrompt({ base: placeBrief.worldPrompt, movement: nextMovementLayer, event: "clear" }),
+        );
+        agentMovementRef.current = nextMovementLayer;
+      }
+
+      agentActionRef.current = action;
+      appendAgentLog(action.say);
+
+      if (action.status === "done") {
+        await stopAgent("done", "Rehearsal complete.");
+        return;
+      }
+      if (action.status === "stuck") {
+        await stopAgent("stuck", "Scout is stuck. Change the scene or retake the photo.");
+        return;
+      }
+
+      agentTimerRef.current = window.setTimeout(() => {
+        void runAgentTick();
+      }, 2_000);
     } catch {
-      setRehearsalPlan(null);
-      setRehearsalState("error");
+      await stopAgent("error", "Scout lost its observation feed. Holding position.");
     }
   }
 
+  function toggleRehearsal() {
+    if (agentRunningRef.current) {
+      void stopAgent("idle", "Rehearsal stopped.");
+      return;
+    }
+    if (!placeBrief || !seedPreview || !mission.trim()) return;
+
+    setWalkMode(false);
+    agentRunningRef.current = true;
+    agentActionRef.current = idleAction;
+    agentMovementRef.current = "still";
+    agentLogRef.current = ["SCOUT-01 is observing the twin."];
+    setAgentLog(agentLogRef.current);
+    setAgentState("running");
+    void runAgentTick();
+  }
   useEffect(() => {
-    if (worldPhase !== "streaming" || !walkMode) return;
+    if (worldPhase !== "streaming" || !walkMode || agentState === "running") return;
 
     const pressed = new Set<string>();
     const supported = new Set(["KeyW", "KeyS", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
@@ -187,7 +284,7 @@ function TakeZeroConsole() {
         ).catch(() => undefined);
       }
     };
-  }, [worldPhase, walkMode, placeBrief, setWalkAction, setWorldPrompt]);
+  }, [worldPhase, walkMode, agentState, placeBrief, setWalkAction, setWorldPrompt]);
   return (
     <main className="console-shell">
       <header className="topbar">
@@ -247,7 +344,7 @@ function TakeZeroConsole() {
             <span>LIVE TWIN</span>
             <span className="panel-trailing">{status === "ready" ? "READY" : isConnecting ? "CONNECTING" : "OFFLINE"}</span>
           </div>
-          <div className="twin-viewport">
+          <div ref={twinViewportRef} className="twin-viewport">
             <div className="viewport-noise" aria-hidden="true" />
             <div className="viewport-grid" aria-hidden="true" />
             {worldPhase === "streaming" ? (
@@ -261,7 +358,7 @@ function TakeZeroConsole() {
                 <p>{worldPhase === "initializing" ? "PREPARING TWIN" : worldPhase === "error" ? "INITIALIZATION FAILED" : "AWAITING SEED"}</p>
               </div>
             )}
-            {worldPhase === "streaming" && <button type="button" className={`walk-toggle ${walkMode ? "active" : ""}`} onClick={() => setWalkMode((enabled) => !enabled)}>{walkMode ? "WALK MODE / ON" : "WALK MODE / OFF"}</button>}
+            {worldPhase === "streaming" && <button type="button" className={`walk-toggle ${walkMode ? "active" : ""}`} onClick={() => setWalkMode((enabled) => !enabled)} disabled={agentState === "running"}>{walkMode ? "WALK MODE / ON" : "WALK MODE / OFF"}</button>}
             <div className="viewport-footer">
               <span>{walkMode ? "W/S + ARROWS" : placeLabel}</span>
             </div>
@@ -283,24 +380,20 @@ function TakeZeroConsole() {
             disabled={worldPhase !== "streaming"}
           />
           <button
-            className={`rehearse-button ${rehearsalState}`}
+            className={`rehearse-button ${agentState}`}
             type="button"
             onClick={toggleRehearsal}
-            disabled={worldPhase !== "streaming" || !mission.trim() || rehearsalState === "planning"}
+            disabled={worldPhase !== "streaming" || (agentState !== "running" && !mission.trim())}
           >
-            <span>{rehearsalState === "planning" ? "PLANNING" : rehearsalState === "ready" ? "CLEAR" : "REHEARSE"}</span>
-            <span aria-hidden="true">{rehearsalState === "ready" ? "×" : "↗"}</span>
+            <span>{agentState === "running" ? "STOP" : "REHEARSE"}</span>
+            <span aria-hidden="true">{agentState === "running" ? "×" : "↗"}</span>
           </button>
-          {rehearsalState === "error" && <p className="rehearsal-error">PLAN UNAVAILABLE</p>}
-          {rehearsalPlan && (
-            <div className="rehearsal-plan">
-              <span className="plan-label">SIMULATED PLAN</span>
-              <p className="plan-objective">{rehearsalPlan.objective}</p>
-              <ol>{rehearsalPlan.steps.map((step) => <li key={step}>{step}</li>)}</ol>
-              <p className="plan-watchout"><span>WATCHOUT</span>{rehearsalPlan.watchout}</p>
-            </div>
+          {agentState === "error" && <p className="rehearsal-error">SCOUT UNAVAILABLE</p>}
+          {agentLog.length > 0 && (
+            <ol className="agent-log" aria-label="Scout decision log">
+              {agentLog.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+            </ol>
           )}
-
         </aside>
       </section>
     </main>
