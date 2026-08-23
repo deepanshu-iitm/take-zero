@@ -22,8 +22,8 @@ type WalkAction = {
 
 type WorldSession = {
   status: string;
-  connect: () => void;
-  disconnect: () => void;
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
   initializeWorld: (file: File, prompt: string) => Promise<void>;
   setWalkAction: (action: WalkAction) => Promise<void>;
 };

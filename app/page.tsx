@@ -124,7 +124,9 @@ function TakeZeroConsole() {
         <button
           className={`system-status ${status}`}
           type="button"
-          onClick={status === "disconnected" ? connect : disconnect}
+          onClick={() => {
+            void (status === "disconnected" ? connect() : disconnect()).catch(() => undefined);
+          }}
           aria-label={status === "disconnected" ? "Connect to Reactor" : "Disconnect from Reactor"}
         >
           <span className="status-light" aria-hidden="true" />
