@@ -24,6 +24,8 @@ type AgentAction = {
 type AgentState = "idle" | "running" | "done" | "stuck" | "error";
 type FrameSource = "waiting" | "live" | "seed";
 
+const MAX_AGENT_TICKS = 8;
+
 const idleAction: AgentAction = {
   movement: "idle",
   look_horizontal: "idle",
@@ -53,6 +55,7 @@ function TakeZeroConsole() {
   const agentRunningRef = useRef(false);
   const agentTimerRef = useRef<number | null>(null);
   const agentActionRef = useRef<AgentAction>(idleAction);
+  const agentTickRef = useRef(0);
   const agentMovementRef = useRef<"still" | "moving">("still");
   const activeEventRef = useRef<ScenarioEvent>("clear");
   const agentLogRef = useRef<string[]>([]);
@@ -244,6 +247,7 @@ function TakeZeroConsole() {
       agentActionRef.current = action;
       setCurrentAction(action);
       appendAgentLog(action.say);
+      agentTickRef.current += 1;
 
       if (action.status === "done") {
         await stopAgent("done", "Rehearsal complete.");
@@ -251,6 +255,14 @@ function TakeZeroConsole() {
       }
       if (action.status === "stuck") {
         await stopAgent("stuck", "Scout is stuck. Change the scene or retake the photo.");
+        return;
+      }
+
+      if (agentTickRef.current >= MAX_AGENT_TICKS) {
+        await stopAgent(
+          "stuck",
+          "Rehearsal limit reached. Retake the photo or change the mission.",
+        );
         return;
       }
 
@@ -272,6 +284,7 @@ function TakeZeroConsole() {
     setWalkMode(false);
     agentRunningRef.current = true;
     agentActionRef.current = idleAction;
+    agentTickRef.current = 0;
     setCurrentAction(idleAction);
     setFrameSource("waiting");
     agentMovementRef.current = "still";
