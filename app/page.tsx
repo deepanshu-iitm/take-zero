@@ -22,6 +22,7 @@ type AgentAction = {
 };
 
 type AgentState = "idle" | "running" | "done" | "stuck" | "error";
+type FrameSource = "waiting" | "live" | "seed";
 
 const idleAction: AgentAction = {
   movement: "idle",
@@ -45,6 +46,7 @@ function TakeZeroConsole() {
   const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
   const [mission, setMission] = useState("Find the nearest door");
   const [agentState, setAgentState] = useState<AgentState>("idle");
+  const [frameSource, setFrameSource] = useState<FrameSource>("waiting");
   const [activeEvent, setActiveEvent] = useState<ScenarioEvent>("clear");
   const [currentAction, setCurrentAction] = useState<AgentAction>(idleAction);
   const [agentLog, setAgentLog] = useState<string[]>([]);
@@ -206,7 +208,9 @@ function TakeZeroConsole() {
     if (!agentRunningRef.current || !placeBrief || !seedPreview) return;
 
     const video = twinViewportRef.current?.querySelector<HTMLVideoElement>("video") ?? null;
-    const frame = captureVideoFrame(video) ?? seedPreview;
+    const liveFrame = captureVideoFrame(video);
+    const frame = liveFrame ?? seedPreview;
+    setFrameSource(liveFrame ? "live" : "seed");
 
     try {
       const response = await fetch("/api/act", {
@@ -269,6 +273,7 @@ function TakeZeroConsole() {
     agentRunningRef.current = true;
     agentActionRef.current = idleAction;
     setCurrentAction(idleAction);
+    setFrameSource("waiting");
     agentMovementRef.current = "still";
     agentLogRef.current = ["SCOUT-01 is observing the twin."];
     setAgentLog(agentLogRef.current);
@@ -410,6 +415,7 @@ function TakeZeroConsole() {
                 <span>{agentState === "running" ? actionLabel : agentState.toUpperCase()}</span>
                 <span>{Math.round(currentAction.confidence * 100)}%</span>
                 <span>{activeEvent.toUpperCase()}</span>
+                <span>{frameSource === "live" ? "LIVE FRAME" : frameSource === "seed" ? "SEED FALLBACK" : "FRAME WAIT"}</span>
               </div>
             )}
             {worldPhase === "streaming" ? (
