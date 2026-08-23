@@ -46,7 +46,7 @@ function TakeZeroConsole() {
   const [seedSize, setSeedSize] = useState("—");
   const [placeLabel, setPlaceLabel] = useState("UNANALYZED SEED");
   const [placeBrief, setPlaceBrief] = useState<PlaceBrief | null>(null);
-  const [mission, setMission] = useState("Find the nearest door");
+  const [mission, setMission] = useState("Reach the nearest accessible doorway");
   const [agentState, setAgentState] = useState<AgentState>("idle");
   const [frameSource, setFrameSource] = useState<FrameSource>("waiting");
   const [activeEvent, setActiveEvent] = useState<ScenarioEvent>("clear");
@@ -402,7 +402,7 @@ function TakeZeroConsole() {
                   <button
                     key={landmark}
                     type="button"
-                    onClick={() => setMission(`Find: ${landmark}`)}
+                    onClick={() => setMission(`Reach: ${landmark}`)}
                     disabled={agentState === "running"}
                   >
                     {landmark}
@@ -460,7 +460,7 @@ function TakeZeroConsole() {
             aria-label="Mission"
             value={mission}
             onChange={(event) => setMission(event.target.value)}
-            placeholder="e.g. Find the nearest door"
+            placeholder="e.g. Reach the nearest accessible doorway"
             disabled={worldPhase !== "streaming"}
           />
           <div className="scenario-controls" aria-label="Scenario controls">
