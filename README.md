@@ -231,4 +231,3 @@ It does not claim collision-free navigation, physical-world guarantees, or contr
 
 ---
 
-**Take Zero** - rehearse the next move before the real one.
